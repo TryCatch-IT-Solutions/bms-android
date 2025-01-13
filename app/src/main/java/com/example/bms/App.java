@@ -52,7 +52,7 @@ public class App extends Application {
 
     private void getApiEndpoint()  {
         SharedPreferences sharedPreferences = getSharedPreferences(Configuration.PREFS_NAME, Context.MODE_PRIVATE);
-        String apiEndpoint = sharedPreferences.getString("API_ENDPOINT", "http://192.168.1.58:8000/api");
+        String apiEndpoint = sharedPreferences.getString("API_ENDPOINT", "http://115.147.32.2:9001/api");
 
         BASE_URL = apiEndpoint;
         Log.d("Configuration", "API Endpoint: " + apiEndpoint);
@@ -169,7 +169,7 @@ public class App extends Application {
             jsonBuilder.append("\"status\":\"").append(cursor.getString(cursor.getColumnIndex(DatabaseHelper.COLUMN_STATUS))).append("\",");
             jsonBuilder.append("\"created_at\":\"").append(cursor.getString(cursor.getColumnIndex(DatabaseHelper.COLUMN_CREATED_AT))).append("\",");
             jsonBuilder.append("\"updated_at\":\"").append(cursor.getString(cursor.getColumnIndex(DatabaseHelper.COLUMN_UPDATED_AT))).append("\",");
-            jsonBuilder.append("\"deleted_at\":\"").append(cursor.getString(cursor.getColumnIndex(DatabaseHelper.COLUMN_DELETED_AT))).append("\",");
+            jsonBuilder.append("\"deleted_at\":\"").append("").append("\",");
             jsonBuilder.append("\"deleted_by\":\"").append(cursor.getString(cursor.getColumnIndex(DatabaseHelper.COLUMN_DELETED_BY))).append("\",");
 
             long userId = cursor.getLong(cursor.getColumnIndex(DatabaseHelper.COLUMN_ID));
@@ -216,6 +216,8 @@ public class App extends Application {
         String usersJson = jsonBuilder.toString();
         String jsonData = "{\"users\":" + usersJson + "}";
 
+        System.out.println("UserRe:"+jsonData);
+
         writeResponseToFile(jsonData);
         ExecutorService executor = Executors.newSingleThreadExecutor();
         Handler handler = new Handler(Looper.getMainLooper());
@@ -255,6 +257,7 @@ public class App extends Application {
                         while ((responseLine = br.readLine()) != null) {
                             response.append(responseLine.trim());
                         }
+                        System.out.println();
                         JSONObject jsonResponse = new JSONObject(response.toString());
                         if (jsonResponse.has("message")) {
                             errorMessage = jsonResponse.getString("message");
@@ -292,6 +295,7 @@ public class App extends Application {
                         callback.onSuccess();
                     }
                 } else {
+
                     new SweetAlertDialog(context, SweetAlertDialog.ERROR_TYPE)
                             .setTitleText("Failed to sync.")
                             .setContentText(finalErrorMessage)

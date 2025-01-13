@@ -579,6 +579,7 @@ public class EnrollmentEdit extends AppCompatActivity {
                 public void onFailure(String errorMessage) {
                     // Handle failure
                     Toast.makeText(EnrollmentEdit.this, "Sync failed: " + errorMessage, Toast.LENGTH_SHORT).show();
+                    Log.d("Errorrrrr", errorMessage);
                     finish();
                 }
             },true);

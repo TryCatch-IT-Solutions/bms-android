@@ -6,6 +6,7 @@ import android.content.Context;
 import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
 import android.database.sqlite.SQLiteOpenHelper;
+import android.util.Log;
 
 import com.example.bms.data.model.LoggedInUser;
 import com.example.bms.data.model.User;
@@ -337,7 +338,10 @@ public class DatabaseHelper extends SQLiteOpenHelper {
 
 
     public String getCurrentDateTime() {
-        @SuppressLint("SimpleDateFormat") SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+        Log.d("Datetime", "Test");
+        SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+        Log.d("Datetime", "Test Done" + sdf.format(new Date()));
+
         return sdf.format(new Date());
     }
 

@@ -65,6 +65,8 @@ public class LoginActivity extends AppCompatActivity {
 
     private void syncUsers(){
         try {
+            Log.d("LoginAct234",App.BASE_URL + "/sync/users/login");
+
             URL url = new URL(App.BASE_URL + "/sync/users/login");
             HttpURLConnection conn = (HttpURLConnection) url.openConnection();
             conn.setRequestMethod("GET");
@@ -84,6 +86,7 @@ public class LoginActivity extends AppCompatActivity {
 
             conn.disconnect();
 
+            Log.d("Kahit ano", response.toString());
             JSONArray users = new JSONArray(response.toString());
             UserRepository userRepository = new UserRepository(this);
             userRepository.resetUsersTable();
