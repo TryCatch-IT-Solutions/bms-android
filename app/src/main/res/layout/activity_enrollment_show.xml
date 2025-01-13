@@ -1,0 +1,275 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#FFFFFF"
+    android:id="@+id/main">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical">
+
+        <!-- Top Section -->
+        <RelativeLayout
+            android:layout_width="match_parent"
+            android:layout_height="200dp"
+            android:background="@drawable/gradient_background">
+
+            <!-- Profile Image -->
+            <!--            <ImageView-->
+            <!--                android:id="@+id/profileImage"-->
+            <!--                android:layout_width="120dp"-->
+            <!--                android:layout_height="120dp"-->
+            <!--                android:layout_centerHorizontal="true"-->
+            <!--                android:layout_marginTop="20dp"-->
+            <!--                android:scaleType="centerCrop"-->
+            <!--                android:src="@drawable/avatar_placeholder_64"-->
+            <!--                />-->
+
+            <!-- Username -->
+            <TextView
+                android:id="@+id/name_header"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_centerHorizontal="true"
+                android:layout_marginTop="40dp"
+                android:text="Name"
+                android:textColor="#FFFFFF"
+                android:textSize="20sp"
+                android:textStyle="bold" />
+
+            <!-- Email -->
+            <TextView
+                android:id="@+id/userEmail"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_below="@id/name_header"
+                android:layout_centerHorizontal="true"
+                android:layout_marginTop="5dp"
+                android:text="bms@example.com"
+                android:textColor="#FFFFFF"
+                android:textSize="14sp" />
+
+            <!-- Back Button -->
+            <Button
+                android:id="@+id/backButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_below="@+id/userEmail"
+                android:layout_centerHorizontal="true"
+                android:layout_marginTop="20dp"
+                android:backgroundTint="@color/secondary"
+                android:text="Back to Home"
+                android:textColor="#FFFFFF" />
+        </RelativeLayout>
+
+        <!-- Account Info Section -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:padding="20dp">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Account Info"
+                android:textSize="18sp"
+                android:textStyle="bold" />
+
+            <!-- Name Row -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:layout_marginTop="10dp"
+                android:gravity="center_vertical">
+
+                <!-- Icon -->
+                <ImageView
+                    android:layout_width="24dp"
+                    android:layout_height="24dp"
+                    app:tint="@color/secondary"
+                    android:src="@drawable/user_info_64"
+                    android:layout_marginEnd="10dp" />
+
+                <!-- Label and Value -->
+                <LinearLayout
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Name"
+                        android:textColor="#FF000000"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:id="@+id/name"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Value"
+                        android:textColor="#888888" />
+                </LinearLayout>
+            </LinearLayout>
+
+
+            <!-- Mobile Row -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:layout_marginTop="10dp"
+                android:gravity="center_vertical">
+
+                <!-- Icon -->
+                <ImageView
+                    android:layout_width="24dp"
+                    android:layout_height="24dp"
+                    android:src="@drawable/mobile_64"
+                    android:layout_marginEnd="10dp"
+                    app:tint="@color/secondary" />
+
+                <!-- Label and Value -->
+                <LinearLayout
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Mobile"
+                        android:textColor="#FF000000"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:id="@+id/phone"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Value"
+                        android:textColor="#888888" />
+                </LinearLayout>
+            </LinearLayout>
+
+            <!-- Email Row -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:layout_marginTop="10dp"
+                android:gravity="center_vertical">
+
+                <!-- Icon -->
+                <ImageView
+                    android:layout_width="24dp"
+                    android:layout_height="24dp"
+                    android:src="@drawable/email_64"
+                    app:tint="@color/secondary"
+                    android:layout_marginEnd="10dp" />
+
+                <!-- Label and Value -->
+                <LinearLayout
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Email"
+                        android:textColor="#FF000000"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:id="@+id/email"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Value"
+                        android:textColor="#888888" />
+                </LinearLayout>
+            </LinearLayout>
+
+            <!-- Address Row -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:layout_marginTop="10dp"
+                android:gravity="center_vertical">
+
+                <!-- Icon -->
+                <ImageView
+                    android:layout_width="24dp"
+                    android:layout_height="24dp"
+                    app:tint="@color/secondary"
+                    android:src="@drawable/location_map_64"
+                    android:layout_marginEnd="10dp" />
+
+                <!-- Label and Value -->
+                <LinearLayout
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Address"
+                        android:textColor="#FF000000"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:id="@+id/address"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Value"
+                        android:textColor="#888888" />
+                </LinearLayout>
+            </LinearLayout>
+
+            <!-- DOB Row -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:layout_marginTop="10dp"
+                android:gravity="center_vertical">
+
+                <!-- Icon -->
+                <ImageView
+                    android:layout_width="24dp"
+                    android:layout_height="24dp"
+                    android:src="@drawable/cake_64"
+                    app:tint="@color/secondary"
+                    android:layout_marginEnd="10dp" />
+
+                <!-- Label and Value -->
+                <LinearLayout
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Date of Birth"
+                        android:textColor="#FF000000"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:id="@+id/birth_date"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Value"
+                        android:textColor="#888888" />
+                </LinearLayout>
+            </LinearLayout>
+        </LinearLayout>
+
+    </LinearLayout>
+</ScrollView>

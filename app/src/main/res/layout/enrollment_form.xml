@@ -1,0 +1,515 @@
+<androidx.core.widget.NestedScrollView
+    android:id="@+id/nested_scroll_view"
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    app:layout_behavior="@string/appbar_scrolling_view_behavior"
+    android:layout_margin="10dp">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:paddingTop="32dp">
+
+        <!-- First Name Input -->
+        <com.google.android.material.textfield.TextInputLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="16dp"
+            android:hint="First Name">
+
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/first_name"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:inputType="textPersonName"
+                android:textSize="16sp"
+                android:importantForAccessibility="yes" />
+        </com.google.android.material.textfield.TextInputLayout>
+
+        <!-- Middle Name Input -->
+        <com.google.android.material.textfield.TextInputLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="16dp"
+            android:hint="Middle Name">
+
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/middle_name"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:inputType="textPersonName"
+                android:textSize="16sp"
+                android:importantForAccessibility="yes" />
+        </com.google.android.material.textfield.TextInputLayout>
+
+        <!-- Last Name Input -->
+        <com.google.android.material.textfield.TextInputLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="16dp"
+            android:hint="Last Name">
+
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/last_name"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:inputType="textPersonName"
+                android:textSize="16sp"
+                android:importantForAccessibility="yes" />
+        </com.google.android.material.textfield.TextInputLayout>
+
+        <!-- Address1 Input -->
+        <com.google.android.material.textfield.TextInputLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="16dp"
+            android:hint="Address 1">
+
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/address1"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:inputType="textPostalAddress"
+                android:textSize="16sp"
+                android:importantForAccessibility="yes" />
+        </com.google.android.material.textfield.TextInputLayout>
+
+        <!-- Address2 Input -->
+        <com.google.android.material.textfield.TextInputLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="16dp"
+            android:hint="Address 2">
+
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/address2"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:inputType="textPostalAddress"
+                android:textSize="16sp"
+                android:importantForAccessibility="yes" />
+        </com.google.android.material.textfield.TextInputLayout>
+
+        <!-- Barangay Input -->
+        <com.google.android.material.textfield.TextInputLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="16dp"
+            android:hint="Barangay">
+
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/barangay"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:inputType="text"
+                android:textSize="16sp"
+                android:importantForAccessibility="yes" />
+        </com.google.android.material.textfield.TextInputLayout>
+
+        <!-- Municipality Input -->
+        <com.google.android.material.textfield.TextInputLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="16dp"
+            android:hint="Municipality">
+
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/municipality"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:inputType="text"
+                android:textSize="16sp"
+                android:importantForAccessibility="yes" />
+        </com.google.android.material.textfield.TextInputLayout>
+
+        <!-- Province Input -->
+        <com.google.android.material.textfield.TextInputLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="16dp"
+            android:hint="Province">
+
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/province"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:inputType="text"
+                android:textSize="16sp"
+                android:importantForAccessibility="yes" />
+        </com.google.android.material.textfield.TextInputLayout>
+
+        <!-- Birth Date Input -->
+        <com.google.android.material.textfield.TextInputLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="16dp"
+            android:hint="Birth Date">
+
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/birth_date"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:inputType="none"
+                android:focusable="false"
+                android:clickable="true"
+                android:textSize="16sp"
+                android:importantForAccessibility="yes" />
+        </com.google.android.material.textfield.TextInputLayout>
+
+
+        <!-- Gender Input -->
+        <com.google.android.material.textfield.TextInputLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="16dp"
+            android:hint="Gender"
+            android:background="@drawable/rounded_border">
+
+            <Spinner
+                android:id="@+id/gender_spinner"
+                android:layout_width="match_parent"
+                android:padding="16dp"
+                android:layout_height="wrap_content"
+                android:importantForAccessibility="yes" />
+        </com.google.android.material.textfield.TextInputLayout>
+
+        <!-- Zip Code Input -->
+        <com.google.android.material.textfield.TextInputLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="16dp"
+            android:hint="Zip Code">
+
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/zip_code"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:inputType="number"
+                android:maxLength="6"
+                android:textSize="16sp"
+                android:importantForAccessibility="yes" />
+        </com.google.android.material.textfield.TextInputLayout>
+
+        <!-- Email Input -->
+        <com.google.android.material.textfield.TextInputLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="16dp"
+            android:hint="Email">
+
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/email"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:importantForAccessibility="yes"
+                android:inputType="textEmailAddress"
+                />
+        </com.google.android.material.textfield.TextInputLayout>
+
+        <!-- Phone Number Input -->
+        <com.google.android.material.textfield.TextInputLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="32dp"
+            app:startIconDrawable="@drawable/ph_40"
+            app:startIconTint="@null"
+            android:hint="Phone Number">
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/phone"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:inputType="phone"
+                android:maxLength="13"
+                android:importantForAccessibility="yes" />
+        </com.google.android.material.textfield.TextInputLayout>
+
+        <!-- Emergency Contact Name Input -->
+        <com.google.android.material.textfield.TextInputLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="16dp"
+            android:hint="Emergency Contact Name">
+
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/emergency_contact_name"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:inputType="textPersonName"
+                android:textSize="16sp"
+                android:importantForAccessibility="yes" />
+        </com.google.android.material.textfield.TextInputLayout>
+
+        <!-- Emergency Contact Input -->
+        <com.google.android.material.textfield.TextInputLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="32dp"
+            app:startIconDrawable="@drawable/ph_40"
+            app:startIconTint="@null"
+            android:hint="Emergency Contact No">
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/emergency_contact"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:maxLength="13"
+                android:inputType="phone"
+                android:importantForAccessibility="yes" />
+        </com.google.android.material.textfield.TextInputLayout>
+
+        <!-- Scan RFID Box -->
+        <com.google.android.material.card.MaterialCardView
+            android:id="@+id/scan_rfid_box"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="16dp"
+            app:strokeWidth="2dp"
+            android:focusable="true"
+            android:focusableInTouchMode="true"
+            app:strokeColor="@color/primary">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:paddingVertical="20dp"
+                android:gravity="center">
+
+                <ImageView
+                    android:layout_width="100dp"
+                    android:layout_height="100dp"
+                    android:src="@drawable/rfid_100"
+                    android:contentDescription="PLEASE SCAN RFID"
+                    app:tint="@color/black" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="PLEASE SCAN RFID"
+                    android:gravity="center"
+                    android:textStyle="bold"
+                    android:textColor="@color/black"
+                    android:textSize="16sp"
+                    android:layout_marginTop="8dp" />
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <com.google.android.material.card.MaterialCardView
+            android:id="@+id/card_rfid_registered"
+            android:visibility="gone"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="16dp"
+            app:strokeWidth="2dp"
+            app:strokeColor="@color/green">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:paddingVertical="20dp"
+                android:gravity="center">
+
+                <ImageView
+                    android:layout_width="100dp"
+                    android:layout_height="100dp"
+                    android:src="@drawable/check_100"
+                    android:contentDescription="RFID Registered"
+                    app:tint="@color/green" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="RFID REGISTERED"
+                    android:gravity="center"
+                    android:textStyle="bold"
+                    android:textColor="@color/black"
+                    android:textSize="16sp"
+                    android:layout_marginTop="8dp" />
+
+                <!-- Button to reset RFID -->
+                <Button
+                    android:id="@+id/button_reset_rfid"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Reset RFID"
+                    android:layout_marginTop="16dp"
+                    android:backgroundTint="@color/green"
+                    android:textColor="@color/white" />
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- Scan Fingerprint Box -->
+        <com.google.android.material.card.MaterialCardView
+            android:id="@+id/scan_fingerprint_box"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="16dp"
+            app:strokeWidth="2dp"
+            app:strokeColor="@color/primary">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:paddingVertical="20dp"
+                android:gravity="center">
+
+                <ImageView
+                    android:layout_width="100dp"
+                    android:layout_height="100dp"
+                    android:src="@drawable/scan_finger_100"
+                    android:contentDescription="RFID Scan"
+                    app:tint="@color/black" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="CLICK HERE TO SCAN FINGERPRINTS"
+                    android:gravity="center"
+                    android:textStyle="bold"
+                    android:textColor="@color/black"
+                    android:textSize="16sp"
+                    android:layout_marginTop="8dp" />
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <com.google.android.material.card.MaterialCardView
+            android:id="@+id/card_fingerprint_registered"
+            android:visibility="gone"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="16dp"
+            app:strokeWidth="2dp"
+            app:strokeColor="@color/green">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:paddingVertical="20dp"
+                android:gravity="center">
+
+                <ImageView
+                    android:layout_width="100dp"
+                    android:layout_height="100dp"
+                    android:src="@drawable/fingerprint_check_100"
+                    android:contentDescription="Fingerprint Registered"
+                    app:tint="@color/green" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="FINGERPRINT REGISTERED"
+                    android:gravity="center"
+                    android:textStyle="bold"
+                    android:textColor="@color/black"
+                    android:textSize="16sp"
+                    android:layout_marginTop="8dp" />
+
+                <!-- Button to reset RFID -->
+                <Button
+                    android:id="@+id/button_reset_fingerprint"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Reset Fingerprint"
+                    android:layout_marginTop="16dp"
+                    android:backgroundTint="@color/green"
+                    android:textColor="@color/white" />
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- Scan Face Box -->
+        <com.google.android.material.card.MaterialCardView
+            android:id="@+id/scan_face_box"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="16dp"
+            app:strokeWidth="2dp"
+            app:strokeColor="@color/primary"
+            >
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:paddingVertical="20dp"
+                android:gravity="center">
+
+                <ImageView
+                    android:layout_width="100dp"
+                    android:layout_height="100dp"
+                    android:src="@drawable/face_scan_100"
+                    android:contentDescription="RFID Scan"
+                    app:tint="@color/black" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="SCAN FACE"
+                    android:gravity="center"
+                    android:textStyle="bold"
+                    android:textColor="@color/black"
+                    android:textSize="16sp"
+                    android:layout_marginTop="8dp" />
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <com.google.android.material.card.MaterialCardView
+            android:id="@+id/card_face_verified"
+            android:visibility="gone"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="16dp"
+            app:strokeWidth="2dp"
+            app:strokeColor="@color/green">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:paddingVertical="20dp"
+                android:gravity="center">
+
+                <ImageView
+                    android:layout_width="100dp"
+                    android:layout_height="100dp"
+                    android:src="@drawable/check_100"
+                    android:contentDescription="Face Verified"
+                    app:tint="@color/green" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="FACE REGISTERED"
+                    android:gravity="center"
+                    android:textStyle="bold"
+                    android:textColor="@color/black"
+                    android:textSize="16sp"
+                    android:layout_marginTop="8dp" />
+
+                <Button
+                    android:id="@+id/button_reset_face"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Reset Face Registration"
+                    android:layout_marginTop="16dp"
+                    android:backgroundTint="@color/green"
+                    android:textColor="@color/white" />
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- Submit Button -->
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btn_submit"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Submit"
+            android:padding="16dp"
+            android:layout_marginTop="16dp"
+            android:backgroundTint="@color/primary"
+            android:textColor="@android:color/white" />
+    </LinearLayout>
+</androidx.core.widget.NestedScrollView>
