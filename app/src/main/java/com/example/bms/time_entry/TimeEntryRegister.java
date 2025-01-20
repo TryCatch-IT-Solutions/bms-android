@@ -43,7 +43,12 @@ import androidx.core.content.ContextCompat;
 import androidx.core.graphics.Insets;
 import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
+import androidx.recyclerview.widget.LinearLayoutManager;
+import androidx.recyclerview.widget.RecyclerView;
 
+import com.example.bms.AnnouncementAdapter;
+import com.example.bms.AnnouncementModel;
+import com.example.bms.AnnouncementRepository;
 import com.example.bms.App;
 import com.example.bms.Biometric;
 import com.example.bms.BiometricRepository;
@@ -56,6 +61,8 @@ import com.example.bms.GroupActivity;
 import com.example.bms.MainActivity;
 import com.example.bms.R;
 import com.example.bms.ScanFaceActivity;
+import com.example.bms.SplashScreen;
+import com.example.bms.data.LoginDataSource;
 import com.example.bms.data.model.User;
 import com.google.android.material.switchmaterial.SwitchMaterial;
 import com.hfteco.finger.FingerSDK;
@@ -147,6 +154,22 @@ public class TimeEntryRegister extends CameraSettingActivity implements CameraMa
 
     private SharedPreferences sharedPreferences;
 
+    private void syncTimeEntries(){
+        ((App) getApplication()).syncTimeEntriesOnLogout(TimeEntryRegister.this, new App.SyncCallback() {
+            @Override
+            public void onSuccess() {
+                Log.d("TimeEntryRegister", "Time entries synced");
+            }
+
+            @Override
+            public void onFailure(String errorMessage) {
+                Log.d("TimeEntryRegister", "Time entries sync failed: " + errorMessage);
+                Toast.makeText(TimeEntryRegister.this, "Time entries sync failed: " + errorMessage, Toast.LENGTH_SHORT).show();
+            }
+        });
+    }
+
+
     @Override
     public void onCreateBase(Bundle savedInstanceState) {
         EdgeToEdge.enable(this);
@@ -178,6 +201,10 @@ public class TimeEntryRegister extends CameraSettingActivity implements CameraMa
 
         mProgressDialog = new ProgressDialog(this);
 
+        // Load the saved state
+        SharedPreferences sharedPreferences = getSharedPreferences(Configuration.PREFS_NAME, Context.MODE_PRIVATE);
+        isTimeRegisterOn = sharedPreferences.getBoolean(Configuration.KEY_TIME_REGISTER, false);
+
         WindowManager.LayoutParams layoutParams = new WindowManager.LayoutParams();
         layoutParams.copyFrom(welcomeDialog.getWindow().getAttributes());
         layoutParams.width = (int) (getResources().getDisplayMetrics().widthPixels * 0.9);
@@ -186,20 +213,23 @@ public class TimeEntryRegister extends CameraSettingActivity implements CameraMa
 
         welcomeDialog.getWindow().setBackgroundDrawable(getDrawable(R.drawable.rounded_bg_white));
         welcomeDialog.setCancelable(false);
-        greeting = welcomeDialog.findViewById(R.id.greeting);
-        timeEntry = welcomeDialog.findViewById(R.id.time_entry);
-        welcomeDialogName = welcomeDialog.findViewById(R.id.name);
 
-        // Load the saved state
-        SharedPreferences sharedPreferences = getSharedPreferences(Configuration.PREFS_NAME, Context.MODE_PRIVATE);
-        isTimeRegisterOn = sharedPreferences.getBoolean(Configuration.KEY_TIME_REGISTER, false);
+
+        if(!isTimeRegisterOn) {
+            greeting = welcomeDialog.findViewById(R.id.greeting);
+            timeEntry = welcomeDialog.findViewById(R.id.time_entry);
+            welcomeDialogName = welcomeDialog.findViewById(R.id.name);
+        }else{
+            greeting = findViewById(R.id.greeting);
+            timeEntry = findViewById(R.id.time_entry);
+            welcomeDialogName = findViewById(R.id.name);
+        }
 
         getFingerPrints();
-
         getTrackerSwitches();
 
         mProgressDialog.setMessage(getString(R.string.loading));
-        mProgressDialog.show();
+//        mProgressDialog.show();
         new Thread(new Runnable() {
             @Override
             public void run() {
@@ -239,13 +269,18 @@ public class TimeEntryRegister extends CameraSettingActivity implements CameraMa
         getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
             @Override
             public void handleOnBackPressed() {
+
+                allowCapture = false;
+
                 if(mNfcAdapter != null) {
                     mNfcAdapter.disableForegroundDispatch(TimeEntryRegister.this);
                 }
 
                 if(fingerSDK != null) {
                     fingerSDK.release();
+                    System.out.println("Finger SDK released");
                 }
+
 
                 Intent intent = new Intent(TimeEntryRegister.this, MainActivity.class);
                 startActivity(intent);
@@ -296,6 +331,8 @@ public class TimeEntryRegister extends CameraSettingActivity implements CameraMa
                     showScanLayout();
                     hostCapture();
                     welcomeText.setText("Time Register");
+                    syncTimeEntries();
+
                 } else {
                     Toast.makeText(TimeEntryRegister.this, "Failed to clock in, Please try again.", Toast.LENGTH_SHORT).show();
                 }
@@ -318,6 +355,8 @@ public class TimeEntryRegister extends CameraSettingActivity implements CameraMa
                     showScanLayout();
                     hostCapture();
                     welcomeText.setText("Time Register");
+                    syncTimeEntries();
+
                 } else {
                     Toast.makeText(TimeEntryRegister.this, "Failed to clock out, Please try again.", Toast.LENGTH_SHORT).show();
                 }
@@ -340,6 +379,8 @@ public class TimeEntryRegister extends CameraSettingActivity implements CameraMa
                     showScanLayout();
                     hostCapture();
                     welcomeText.setText("Time Register");
+                    syncTimeEntries();
+
                 } else {
                     Toast.makeText(TimeEntryRegister.this, "Failed to break in, Please try again.", Toast.LENGTH_SHORT).show();
                 }
@@ -362,6 +403,8 @@ public class TimeEntryRegister extends CameraSettingActivity implements CameraMa
                     showScanLayout();
                     hostCapture();
                     welcomeText.setText("Time Register");
+                    syncTimeEntries();
+
                 } else {
                     Toast.makeText(TimeEntryRegister.this, "Failed to break out, Please try again.", Toast.LENGTH_SHORT).show();
                 }
@@ -384,6 +427,8 @@ public class TimeEntryRegister extends CameraSettingActivity implements CameraMa
                     showScanLayout();
                     hostCapture();
                     welcomeText.setText("Time Register");
+                    syncTimeEntries();
+
                 } else {
                     Toast.makeText(TimeEntryRegister.this, "Failed to overtime-in, Please try again.", Toast.LENGTH_SHORT).show();
                 }
@@ -405,6 +450,8 @@ public class TimeEntryRegister extends CameraSettingActivity implements CameraMa
                     Toast.makeText(TimeEntryRegister.this, "Overtime out", Toast.LENGTH_SHORT).show();
                     showScanLayout();
                     hostCapture();
+                    syncTimeEntries();
+                    welcomeText.setText("Time Register");
                 } else {
                     Toast.makeText(TimeEntryRegister.this, "Failed to overtime-out, Please try again.", Toast.LENGTH_SHORT).show();
                 }
@@ -518,6 +565,8 @@ public class TimeEntryRegister extends CameraSettingActivity implements CameraMa
             greeting.setText("Good Evening");
         }
 
+        System.out.println("The time is: " + hour);
+
         SimpleDateFormat sdf = new SimpleDateFormat("hh:mm a", Locale.getDefault());
         String currentTime = sdf.format(calendar.getTime());
         timeEntry.setText("Time Entry: " + currentTime);
@@ -571,6 +620,7 @@ public class TimeEntryRegister extends CameraSettingActivity implements CameraMa
 
     @Override
     public void onDestroy() {
+        allowCapture = false;
         if(mRecognizeThread!=null) {
             mRecognizeThread.interrupt();
         }
@@ -581,6 +631,11 @@ public class TimeEntryRegister extends CameraSettingActivity implements CameraMa
             manager.release();
         }
         InitFacePassHandler.release();
+
+        if(fingerSDK != null) {
+            fingerSDK.release();
+            System.out.println("Finger SDK released");
+        }
         super.onDestroy();
     }
 
@@ -595,10 +650,34 @@ public class TimeEntryRegister extends CameraSettingActivity implements CameraMa
 
     private void showUserProfile(User user) {
 
+        AnnouncementRepository repository = new AnnouncementRepository(TimeEntryRegister.this);
+        AnnouncementModel[] announcements = repository.getAnnouncements(Long.parseLong(user.getUserId()));
+
+        System.out.println("The announcements are:" + announcements);
+
         adjustGreeting(user);
         welcomeDialog.show();
         allowCapture = false;
         hasPreview = true;
+
+        RecyclerView announcementList = welcomeDialog.findViewById(R.id.announcement_list);
+        announcementList.setLayoutManager(new LinearLayoutManager(this));
+        AnnouncementAdapter adapter = new AnnouncementAdapter(Arrays.asList(announcements));
+        announcementList.setAdapter(adapter);
+
+
+        ((App) getApplication()).syncTimeEntriesOnLogout(TimeEntryRegister.this, new App.SyncCallback() {
+            @Override
+            public void onSuccess() {
+                Log.d("TimeEntryRegister", "Time entries synced");
+            }
+
+            @Override
+            public void onFailure(String errorMessage) {
+                Log.d("TimeEntryRegister", "Time entries sync failed: " + errorMessage);
+                Toast.makeText(TimeEntryRegister.this, "Time entries sync failed: " + errorMessage, Toast.LENGTH_SHORT).show();
+            }
+        });
 
         new Handler(Looper.getMainLooper()).postDelayed(new Runnable() {
             @Override
@@ -612,12 +691,19 @@ public class TimeEntryRegister extends CameraSettingActivity implements CameraMa
     }
 
     private void hostCapture() {
-        if (!allowCapture) {
+        if (!allowCapture || hasPreview) {
             return;
         }
+        fingerSDK.clear();
         fingerSDK.captureBytes(FingerSDK.TEMPLEATES.valueOf("ISO_19794_2_2011"), new OnCaptureBytesListener() {
             @Override
             public void capture(int i, byte[] bytes, Bitmap bitmap, byte[] temp) {
+                Log.d("FingerPrintScanActivity", "capture here: " + i);
+
+                if(!allowCapture) {
+                    return;
+                }
+
                 if (i == FingerSDK.RESULT_OK) {
                     try {
                         String tempString = new String(temp, "ISO8859-1");
@@ -636,6 +722,7 @@ public class TimeEntryRegister extends CameraSettingActivity implements CameraMa
                                         if(isTimeRegisterOn) {
                                             Toast.makeText(TimeEntryRegister.this, "Welcome Employee", Toast.LENGTH_SHORT).show();
                                             welcomeText.setText("Welcome, ".concat( user.getDisplayName()).concat(" 👋"));
+                                            adjustGreeting(user);
                                             showClockLayout();
                                         }else{
                                             if (hasPreview) {
@@ -711,6 +798,10 @@ public class TimeEntryRegister extends CameraSettingActivity implements CameraMa
     protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
 
+        if(!allowCapture || hasPreview) {
+            return;
+        }
+
         Tag tag = intent.getParcelableExtra(NfcAdapter.EXTRA_TAG);
         String id = Conversion.Bytes2HexString(tag.getId());
 
@@ -723,6 +814,8 @@ public class TimeEntryRegister extends CameraSettingActivity implements CameraMa
             Toast.makeText(this, "Welcome Employee", Toast.LENGTH_SHORT).show();
             welcomeText.setText("Welcome, ".concat( user.getDisplayName()).concat(" 👋"));
             if(isTimeRegisterOn) {
+                adjustGreeting(user);
+
                 showClockLayout();
             }else{
                 if (hasPreview) {
@@ -788,7 +881,9 @@ public class TimeEntryRegister extends CameraSettingActivity implements CameraMa
             public void run() {
 //                List<facex.facepass.db.User> userList = ((App) getApplication()).getUserDao().queryBuilder().where(UserDao.Properties.FaceToken.eq(faceToken)).list();
                 Log.d("ScanFace", "findUserByFaceToken: " + faceToken);
-
+                if(!allowCapture || hasPreview) {
+                    return;
+                }
                 BiometricRepository biometricRepository = new BiometricRepository(TimeEntryRegister.this);
                 biometric = biometricRepository.findFaceBiometricByKey(faceToken);
 
@@ -801,6 +896,7 @@ public class TimeEntryRegister extends CameraSettingActivity implements CameraMa
                     if(isTimeRegisterOn) {
                         Toast.makeText(TimeEntryRegister.this, "Welcome Employee", Toast.LENGTH_SHORT).show();
                         welcomeText.setText("Welcome, ".concat( user.getDisplayName()).concat(" 👋"));
+                        adjustGreeting(user);
                         showClockLayout();
                     }else{
                         if (hasPreview) {

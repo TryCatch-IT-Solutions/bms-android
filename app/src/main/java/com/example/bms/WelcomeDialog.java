@@ -1,5 +1,4 @@
 package com.example.bms;
-
 import android.os.Bundle;
 import android.widget.TextView;
 
@@ -8,6 +7,12 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.graphics.Insets;
 import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
+import androidx.recyclerview.widget.LinearLayoutManager;
+import androidx.recyclerview.widget.RecyclerView;
+
+import com.example.bms.R;
+
+import java.util.Arrays;
 
 public class WelcomeDialog extends AppCompatActivity {
 
@@ -25,5 +30,17 @@ public class WelcomeDialog extends AppCompatActivity {
         TextView greeting = findViewById(R.id.greeting);
         greeting.setText("Welcome to the app!");
 
+        RecyclerView announcementList = findViewById(R.id.announcement_list);
+        announcementList.setLayoutManager(new LinearLayoutManager(this));
+
+        // Example data, replace with actual data
+        AnnouncementModel[] announcements = {
+                new AnnouncementModel("SALN Submission", "Please submit your SALN on or before April 30, 2022.", "2022-04-30"),
+                new AnnouncementModel("Meeting Reminder", "Team meeting at 10:00 AM on Monday.", "2022-12-12"),
+                new AnnouncementModel("Holiday Notice", "Office will be closed on December 25, 2022.", "2022-12-25")
+        };
+
+        AnnouncementAdapter adapter = new AnnouncementAdapter(Arrays.asList(announcements));
+        announcementList.setAdapter(adapter);
     }
 }

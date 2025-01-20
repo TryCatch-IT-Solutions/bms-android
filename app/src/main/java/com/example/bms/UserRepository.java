@@ -25,19 +25,26 @@ public class UserRepository {
         db.close();
     }
 
+    public LoggedInUser getUserByEmail(String email) {
+        return dbHelper.getUserByEmail(email);
+    }
+
     public void resetUsersTable() {
         SQLiteDatabase db = dbHelper.getWritableDatabase();
         //delete all users
         db.delete(DatabaseHelper.TABLE_USERS, null, null);
         db.delete(DatabaseHelper.TABLE_BIOMETRICS, null, null);
         db.delete(DatabaseHelper.TABLE_FINGERPRINTS, null, null);
+        db.delete(DatabaseHelper.TABLE_TIME_ENTRIES, null, null);
         //reset autoincrement
         db.execSQL("DELETE FROM SQLITE_SEQUENCE WHERE NAME = '" + DatabaseHelper.TABLE_USERS + "'");
         db.execSQL("DELETE FROM SQLITE_SEQUENCE WHERE NAME = '" + DatabaseHelper.TABLE_BIOMETRICS + "'");
         db.execSQL("DELETE FROM SQLITE_SEQUENCE WHERE NAME = '" + DatabaseHelper.TABLE_FINGERPRINTS + "'");
+        db.execSQL("DELETE FROM SQLITE_SEQUENCE WHERE NAME = '" + DatabaseHelper.TABLE_TIME_ENTRIES + "'");
         db.execSQL("UPDATE SQLITE_SEQUENCE SET SEQ=0 WHERE NAME='" + DatabaseHelper.TABLE_USERS + "'");
         db.execSQL("UPDATE SQLITE_SEQUENCE SET SEQ=0 WHERE NAME='" + DatabaseHelper.TABLE_BIOMETRICS + "'");
         db.execSQL("UPDATE SQLITE_SEQUENCE SET SEQ=0 WHERE NAME='" + DatabaseHelper.TABLE_FINGERPRINTS + "'");
+        db.execSQL("UPDATE SQLITE_SEQUENCE SET SEQ=0 WHERE NAME='" + DatabaseHelper.TABLE_TIME_ENTRIES + "'");
         db.close();
     }
 
@@ -48,7 +55,7 @@ public class UserRepository {
         SQLiteDatabase db = dbHelper.getWritableDatabase();
         //update deleted at
         ContentValues values = new ContentValues();
-        values.put(DatabaseHelper.COLUMN_DELETED_AT, dbHelper.getCurrentDateTime());
+        values.put(DatabaseHelper.COLUMN_STATUS, "inactive");
         values.put(DatabaseHelper.COLUMN_DELETED_BY, data.getEmail());
 
         values.put(DatabaseHelper.COLUMN_IS_SYNCED, 0);
@@ -121,6 +128,14 @@ public class UserRepository {
         long id = db.insert(DatabaseHelper.TABLE_USERS, null, values);
         db.close();
         return id;
+    }
+
+    private String nullToEmptyString(String val) {
+        if (val == null || val.equals("null")) {
+            return null;
+        } else {
+            return val;
+        }
     }
 
     public long insertUser(long groupId, String firstName, String middleName, String lastName, String address1, String address2, String barangay, String municipality, String province, String birthDate, String gender, int zipCode, double lon, double lat, String email, String phone, String emergencyContactNo,String emergencyContactName, String role, String password) {

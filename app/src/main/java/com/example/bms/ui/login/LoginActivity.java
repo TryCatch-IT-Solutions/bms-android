@@ -1,5 +1,6 @@
 package com.example.bms.ui.login;
 
+import android.annotation.SuppressLint;
 import android.app.Activity;
 
 import androidx.lifecycle.Observer;
@@ -32,8 +33,13 @@ import android.widget.Toast;
 import com.example.bms.App;
 import com.example.bms.BiometricRepository;
 import com.example.bms.Configuration;
+import com.example.bms.DeviceRegistration;
 import com.example.bms.EncryptionUtil;
+import com.example.bms.EndpointRegistration;
 import com.example.bms.FingerprintRepository;
+import com.example.bms.GroupActivity;
+import com.example.bms.GroupRepository;
+import com.example.bms.MainActivity;
 import com.example.bms.R;
 import com.example.bms.SplashScreen;
 import com.example.bms.UserRepository;
@@ -43,6 +49,7 @@ import com.example.bms.ui.login.LoginViewModel;
 import com.example.bms.ui.login.LoginViewModelFactory;
 import com.example.bms.databinding.ActivityLoginBinding;
 import com.google.android.material.button.MaterialButton;
+import com.google.android.material.textfield.TextInputEditText;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -54,8 +61,11 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
+import java.util.Objects;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+
+import cn.pedant.SweetAlert.SweetAlertDialog;
 
 public class LoginActivity extends AppCompatActivity {
 
@@ -71,6 +81,7 @@ public class LoginActivity extends AppCompatActivity {
             HttpURLConnection conn = (HttpURLConnection) url.openConnection();
             conn.setRequestMethod("GET");
             conn.setRequestProperty("Accept", "application/json");
+            conn.setRequestProperty("Authorization", "Bearer " + App.TOKEN);
 
             if (conn.getResponseCode() != 200) {
                 throw new RuntimeException("Failed : HTTP error code : " + conn.getResponseCode());
@@ -86,7 +97,7 @@ public class LoginActivity extends AppCompatActivity {
 
             conn.disconnect();
 
-            Log.d("Kahit ano", response.toString());
+            Log.d("Response 1:", response.toString());
             JSONArray users = new JSONArray(response.toString());
             UserRepository userRepository = new UserRepository(this);
             userRepository.resetUsersTable();
@@ -98,8 +109,6 @@ public class LoginActivity extends AppCompatActivity {
                 JSONObject user = users.getJSONObject(i);
 
                 System.out.println("User: " + user.toString());
-
-
 
                 long groupId = user.isNull("group_id") ? 0 : user.getLong("group_id");
                 long userId = userRepository.insertSyncUser(
@@ -152,20 +161,89 @@ public class LoginActivity extends AppCompatActivity {
         }
     }
 
+    private String getAccess()  {
+        SharedPreferences sharedPreferences = getSharedPreferences(Configuration.PREFS_NAME, Context.MODE_PRIVATE);
+        return sharedPreferences.getString("ACCESS", "offline");
+    }
+
+    private void syncGroups() {
+
+        if(getAccess().equals("offline")){
+            return;
+        }
+
+        try {
+            URL url = new URL(App.BASE_URL + "/sync/groups");
+            HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+            conn.setRequestMethod("GET");
+            conn.setRequestProperty("Accept", "application/json");
+            conn.setRequestProperty("Authorization", "Bearer " + App.TOKEN);
+
+            if (conn.getResponseCode() != 200) {
+                new SweetAlertDialog(LoginActivity.this, SweetAlertDialog.ERROR_TYPE)
+                        .setTitleText("Failed to sync groups")
+                        .setContentText("Failed to sync groups from the server. Please close the app, and try again.")
+                        .show();
+                throw new RuntimeException("Failed : HTTP error code : " + conn.getResponseCode());
+            }
+
+            BufferedReader br = new BufferedReader(new InputStreamReader((conn.getInputStream())));
+
+            StringBuilder response = new StringBuilder();
+            String output;
+            while ((output = br.readLine()) != null) {
+                response.append(output);
+            }
+
+            conn.disconnect();
+
+            JSONArray groups = new JSONArray(response.toString());
+            GroupRepository groupRepository = new GroupRepository(this);
+            // Assuming you have a method to reset the groups table
+            groupRepository.resetTable();
+
+            for (int i = 0; i < groups.length(); i++) {
+                JSONObject group = groups.getJSONObject(i);
+
+                System.out.println("Group: " + group.toString());
+
+                groupRepository.insertGroup(
+                        group.getLong("id"),
+                        group.getString("name"),
+                        group.getString("created_at"),
+                        group.getString("updated_at"));
+            }
+
+            new Handler(Looper.getMainLooper()).postDelayed(new Runnable() {
+                @Override
+                public void run() {
+                    ExecutorService executor = Executors.newSingleThreadExecutor();
+                    executor.execute(LoginActivity.this::syncUsers);
+                }
+            }, 100);
+
+        } catch (Exception e) {
+            e.printStackTrace();
+            Log.e("GroupActivity", "Error during group sync: " + e.getMessage(), e);
+        }
+    }
+
     @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
-        ExecutorService executor = Executors.newSingleThreadExecutor();
-        executor.execute(this::syncUsers);
-
         binding = ActivityLoginBinding.inflate(getLayoutInflater());
         setContentView(binding.getRoot());
+
 
         loginViewModel = new ViewModelProvider(this, new LoginViewModelFactory(LoginActivity.this))
                 .get(LoginViewModel.class);
 
         Log.d("LoginActivity", App.BASE_URL);
+
+
+        ExecutorService executor = Executors.newSingleThreadExecutor();
+        executor.execute(this::syncGroups);
 
         final EditText usernameEditText = binding.username;
         final EditText passwordEditText = binding.password;
@@ -210,7 +288,13 @@ public class LoginActivity extends AppCompatActivity {
                     showLoginFailed(loginResult.getError());
                 }
                 if (loginResult.getSuccess() != null) {
-                    updateUiWithUser(loginResult.getSuccess());
+                    try {
+                        updateUiWithUser(loginResult.getSuccess());
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                        Toast.makeText(LoginActivity.this, "Error: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+                        Log.e("LoginActivity", "Error during login", e);
+                    }
                 }
                 setResult(Activity.RESULT_OK);
 
@@ -258,9 +342,20 @@ public class LoginActivity extends AppCompatActivity {
         });
     }
 
-    private void updateUiWithUser(LoggedInUserView model) {
+    private void updateUiWithUser(LoggedInUserView model) throws Exception {
         String welcome = getString(R.string.welcome) + model.getDisplayName();
         Toast.makeText(getApplicationContext(), welcome, Toast.LENGTH_LONG).show();
+
+        if(getAccess().equals("offline")){
+            EncryptionUtil.generateKey();
+            byte[] encryptedData = EncryptionUtil.encrypt(model.getDisplayName() + "," + model.getEmail() + "," + model.getPassword() + "," + "1" + "," + model.getRole()+ ","+ "no-token-offline");
+            SharedPreferences sharedPreferences = getSharedPreferences("user_prefs", Context.MODE_PRIVATE);
+            SharedPreferences.Editor editor = sharedPreferences.edit();
+            editor.putString("user_data", Base64.encodeToString(encryptedData, Base64.DEFAULT));
+            editor.apply();
+            startActivity(new Intent(LoginActivity.this, SplashScreen.class));
+            return;
+        }
 
         ExecutorService executor = Executors.newSingleThreadExecutor();
         Handler handler = new Handler(Looper.getMainLooper());
@@ -306,6 +401,21 @@ public class LoginActivity extends AppCompatActivity {
                         token = jsonResponse.getString("token");
                         Log.d("LoginDataSource", "Token: " + token);
                     }
+                }
+
+                if(model.getGroupId() == 0 && model.getRole().equals("groupadmin")){
+
+                    new Handler(Looper.getMainLooper()).postDelayed(new Runnable() {
+                        @Override
+                        public void run() {
+                            new SweetAlertDialog(LoginActivity.this, SweetAlertDialog.ERROR_TYPE)
+                                    .setTitleText("Error")
+                                    .setContentText("You are not assigned to any group")
+                                    .show();
+                        }
+                    }, 100);
+
+                  return;
                 }
 
                 if(success) {

@@ -22,13 +22,22 @@ public class TimeRepository {
         return insertTimeEntry(userId, type, dbHelper.getCurrentDateTime(), null, false);
     }
 
+    public boolean hasTimeEntry(long userId, String datetime) {
+        SQLiteDatabase db = dbHelper.getReadableDatabase();
+        Cursor cursor = db.rawQuery("SELECT * FROM " + DatabaseHelper.TABLE_TIME_ENTRIES + " WHERE " + DatabaseHelper.COLUMN_USER_ID + " = ? AND " + DatabaseHelper.COLUMN_DATETIME + " = ?", new String[]{String.valueOf(userId), datetime});
+        boolean hasTimeEntry = cursor.getCount() > 0;
+        cursor.close();
+        db.close();
+        return hasTimeEntry;
+    }
+
     public long insertTimeEntry(long userId, String type, String datetime, String metadata, boolean isSynced) {
         SQLiteDatabase db = dbHelper.getWritableDatabase();
         ContentValues values = new ContentValues();
         values.put(DatabaseHelper.COLUMN_USER_ID, userId);
-        values.put(DatabaseHelper.COLUMN_TYPE, type);
+        values.put(DatabaseHelper.COLUMN_TYPE, nullToEmptyString(type));
         values.put(DatabaseHelper.COLUMN_DATETIME, datetime);
-        values.put(DatabaseHelper.COLUMN_METADATA, metadata);
+        values.put(DatabaseHelper.COLUMN_METADATA, nullToEmptyString(metadata));
         values.put(DatabaseHelper.COLUMN_IS_SYNCED, isSynced);
         values.put(DatabaseHelper.COLUMN_CREATED_AT, dbHelper.getCurrentDateTime());
         values.put(DatabaseHelper.COLUMN_UPDATED_AT, dbHelper.getCurrentDateTime());
@@ -38,13 +47,21 @@ public class TimeRepository {
         return id;
     }
 
+    private String nullToEmptyString(String val) {
+        if (val == null || val.equals("null")) {
+            return null;
+        } else {
+            return val;
+        }
+    }
+
     public int updateTimeEntry(long id, long userId, String type, String datetime, String metadata, boolean isSynced) {
         SQLiteDatabase db = dbHelper.getWritableDatabase();
         ContentValues values = new ContentValues();
         values.put(DatabaseHelper.COLUMN_USER_ID, userId);
-        values.put(DatabaseHelper.COLUMN_TYPE, type);
+        values.put(DatabaseHelper.COLUMN_TYPE, nullToEmptyString(type));
         values.put(DatabaseHelper.COLUMN_DATETIME, datetime);
-        values.put(DatabaseHelper.COLUMN_METADATA, metadata);
+        values.put(DatabaseHelper.COLUMN_METADATA, nullToEmptyString(metadata));
         values.put(DatabaseHelper.COLUMN_IS_SYNCED, isSynced);
         values.put(DatabaseHelper.COLUMN_UPDATED_AT, dbHelper.getCurrentDateTime());
 

@@ -3,7 +3,7 @@ package com.example.bms.ui.login;
 /**
  * Class exposing authenticated user details to the UI.
  */
-class LoggedInUserView {
+public class LoggedInUserView {
     private String displayName;
     private String email;
     private String password;
@@ -12,7 +12,7 @@ class LoggedInUserView {
     private String token;
     //... other data fields that may be accessible to the UI
 
-    LoggedInUserView(String displayName, String email, String password, long groupId, String role, String token) {
+    public LoggedInUserView(String displayName, String email, String password, long groupId, String role, String token) {
         this.displayName = displayName;
         this.email = email;
         this.password = password;

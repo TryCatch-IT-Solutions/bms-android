@@ -565,10 +565,9 @@ public class EnrollmentEdit extends AppCompatActivity {
                         biometricRepository.deleteBiometric(biometric.getId());
                     }
                 }
-
             }
 
-            ((App)getApplication()).syncUsers(EnrollmentEdit.this, new App.SyncCallback() {
+            ((App)getApplication()).syncUsersOnLogout(EnrollmentEdit.this, new App.SyncCallback() {
                 @Override
                 public void onSuccess() {
                     Toast.makeText(EnrollmentEdit.this, "Enrollment saved successfully", Toast.LENGTH_SHORT).show();
@@ -582,7 +581,7 @@ public class EnrollmentEdit extends AppCompatActivity {
                     Log.d("Errorrrrr", errorMessage);
                     finish();
                 }
-            },true);
+            });
 
         });
 
@@ -649,8 +648,13 @@ public class EnrollmentEdit extends AppCompatActivity {
                     String selectedDate = year1 + "-" + (monthOfYear + 1) + "-" + dayOfMonth;
                     birthDateInput.setText(selectedDate);
                 }, year, month, day);
+
+        // Set the maximum date to today
+        datePickerDialog.getDatePicker().setMaxDate(calendar.getTimeInMillis());
+
         datePickerDialog.show();
     }
+
 
     @Override
     protected void onStart() {

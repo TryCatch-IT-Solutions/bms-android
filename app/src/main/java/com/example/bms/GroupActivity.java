@@ -23,6 +23,8 @@ import android.widget.Toast;
 import com.example.bms.data.LoginDataSource;
 import com.example.bms.data.model.LoggedInUser;
 import com.example.bms.databinding.ActivityGroupBinding;
+import com.example.bms.ui.login.LoggedInUserView;
+import com.example.bms.ui.login.LoginResult;
 import com.google.android.gms.location.FusedLocationProviderClient;
 import com.google.android.gms.location.LocationAvailability;
 import com.google.android.gms.location.LocationCallback;
@@ -39,6 +41,7 @@ import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.Toolbar;
 import androidx.core.app.ActivityCompat;
+import androidx.lifecycle.MutableLiveData;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
@@ -54,6 +57,8 @@ import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
+import cn.pedant.SweetAlert.SweetAlertDialog;
+
 public class GroupActivity extends AppCompatActivity {
 
     private ActivityGroupBinding binding;
@@ -64,63 +69,13 @@ public class GroupActivity extends AppCompatActivity {
     private SharedPreferences sharedPreferences;
     public static final String PREFS_NAME = "GroupPrefs";
     public static final String KEY_SELECTED_GROUP = "selected_group";
+    private MutableLiveData<LoginResult> loginResult = new MutableLiveData<>();
 
-    private void syncGroups() {
-        try {
-            URL url = new URL(App.BASE_URL + "/sync/groups");
-            HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-            conn.setRequestMethod("GET");
-            conn.setRequestProperty("Accept", "application/json");
-
-            if (conn.getResponseCode() != 200) {
-                throw new RuntimeException("Failed : HTTP error code : " + conn.getResponseCode());
-            }
-
-            BufferedReader br = new BufferedReader(new InputStreamReader((conn.getInputStream())));
-
-            StringBuilder response = new StringBuilder();
-            String output;
-            while ((output = br.readLine()) != null) {
-                response.append(output);
-            }
-
-            conn.disconnect();
-
-            JSONArray groups = new JSONArray(response.toString());
-            GroupRepository groupRepository = new GroupRepository(this);
-            // Assuming you have a method to reset the groups table
-            groupRepository.resetTable();
-
-            for (int i = 0; i < groups.length(); i++) {
-                JSONObject group = groups.getJSONObject(i);
-
-                System.out.println("Group: " + group.toString());
-
-                groupRepository.insertGroup(
-                        group.getLong("id"),
-                        group.getString("name"),
-                        group.getString("created_at"),
-                        group.getString("updated_at"));
-            }
-
-            new Handler(Looper.getMainLooper()).postDelayed(new Runnable() {
-                @Override
-                public void run() {
-                    initMain();
-                }
-            }, 100);
-
-        } catch (Exception e) {
-            e.printStackTrace();
-            Log.e("GroupActivity", "Error during group sync: " + e.getMessage(), e);
-        }
-    }
 
     @SuppressLint("HardwareIds")
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-
         binding = ActivityGroupBinding.inflate(getLayoutInflater());
         setContentView(binding.getRoot());
 
@@ -133,14 +88,16 @@ public class GroupActivity extends AppCompatActivity {
                 finish();
             }
         });
+        initMain();
 
         if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED && ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
-            Toast.makeText(this, "Location permission not granted", Toast.LENGTH_SHORT).show();
-            return;
+            new SweetAlertDialog(this, SweetAlertDialog.ERROR_TYPE)
+                    .setTitleText("Location Permission")
+                    .setContentText("Location permission not granted")
+                    .setConfirmText("OK")
+                    .setConfirmClickListener(SweetAlertDialog::dismissWithAnimation)
+                    .show();
         }
-
-        ExecutorService executor = Executors.newSingleThreadExecutor();
-        executor.execute(this::syncGroups);
     }
 
     private void initMain(){
@@ -160,7 +117,7 @@ public class GroupActivity extends AppCompatActivity {
             Log.d("Group","Groups: " + groupList);
         }
 
-//        Log.d("GroupActivity", "onCreate: " + data.get);
+        Log.d("Group","GroupsHere: " + groupList);
 
 
         adapter = new GroupAdapter(groupList);
@@ -215,12 +172,15 @@ public class GroupActivity extends AppCompatActivity {
                         @Override
                         public void onSuccess() {
                             try {
+                                String token = ((App) getApplication()).getToken(GroupActivity.this);
                                 EncryptionUtil.generateKey();
-                                byte[] encryptedData = EncryptionUtil.encrypt(data.getDisplayName() + "," + data.getEmail() + "," + data.getPassword() + "," + selectedGroup.getId() + "," + data.getRole()+ ","+ data.getToken());
+                                byte[] encryptedData = EncryptionUtil.encrypt(data.getDisplayName() + "," + data.getEmail() + "," + data.getPassword() + "," + selectedGroup.getId() + "," + data.getRole()+ ","+ token);
                                 SharedPreferences sharedPreferences = getSharedPreferences("user_prefs", Context.MODE_PRIVATE);
                                 SharedPreferences.Editor userEditor = sharedPreferences.edit();
                                 userEditor.putString("user_data", Base64.encodeToString(encryptedData, Base64.DEFAULT));
                                 userEditor.apply();
+                                Log.d("Group", "The Token: " + token);
+//                                loginResult.setValue(new LoginResult(new LoggedInUserView(data.getDisplayName(), data.getEmail(), data.getPassword(), selectedGroup.getId(), data.getRole(), data.getToken())));
                             } catch (Exception e) {
                                 throw new RuntimeException(e);
                             }

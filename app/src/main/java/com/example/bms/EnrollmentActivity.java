@@ -20,6 +20,7 @@ import android.nfc.NfcAdapter;
 import android.nfc.Tag;
 import android.os.Bundle;
 
+import com.example.bms.enrollment.EnrollmentEdit;
 import com.google.android.material.appbar.CollapsingToolbarLayout;
 import com.google.android.material.card.MaterialCardView;
 
@@ -462,8 +463,29 @@ public class EnrollmentActivity extends AppCompatActivity {
                 }
             }
 
-            Toast.makeText(this, "Enrollment saved successfully", Toast.LENGTH_SHORT).show();
-            finish();
+            ((App)getApplication()).syncUsersOnLogout(EnrollmentActivity.this, new App.SyncCallback() {
+                @Override
+                public void onSuccess() {
+                    Toast.makeText(EnrollmentActivity.this, "Enrollment saved successfully", Toast.LENGTH_SHORT).show();
+                    new SweetAlertDialog(EnrollmentActivity.this, SweetAlertDialog.SUCCESS_TYPE)
+                            .setTitleText("Success")
+                            .setContentText("Enrollment saved successfully")
+                            .setConfirmClickListener(sweetAlertDialog -> {
+                                sweetAlertDialog.dismissWithAnimation();
+                                finish();
+                            })
+                            .show();
+                    finish();
+                }
+
+                @Override
+                public void onFailure(String errorMessage) {
+                    // Handle failure
+                    Toast.makeText(EnrollmentActivity.this, "Sync failed: " + errorMessage, Toast.LENGTH_SHORT).show();
+                    Log.d("Errorrrrr", errorMessage);
+                    finish();
+                }
+            });
         });
 
         buttonResetRfid.setOnClickListener(v -> {
@@ -530,6 +552,10 @@ public class EnrollmentActivity extends AppCompatActivity {
                     String selectedDate = year1 + "-" + (monthOfYear + 1) + "-" + dayOfMonth;
                     birthDateInput.setText(selectedDate);
                 }, year, month, day);
+
+        // Set the maximum date to today
+        datePickerDialog.getDatePicker().setMaxDate(calendar.getTimeInMillis());
+
         datePickerDialog.show();
     }
 

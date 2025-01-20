@@ -9,12 +9,17 @@ import android.view.ViewGroup;
 import android.widget.Button;
 import android.widget.ImageButton;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 import androidx.recyclerview.widget.RecyclerView;
 
+import com.example.bms.App;
+import com.example.bms.MainActivity;
 import com.example.bms.R;
+import com.example.bms.SplashScreen;
 import com.example.bms.UserRepository;
+import com.example.bms.data.LoginDataSource;
 import com.example.bms.data.model.User;
 
 import java.util.List;
@@ -65,7 +70,7 @@ public class EmployeeAdapter extends RecyclerView.Adapter<EmployeeAdapter.Employ
             // Handle delete action
             new SweetAlertDialog(context, SweetAlertDialog.WARNING_TYPE)
                     .setTitleText("Are you sure?")
-                    .setContentText("Won't be able to recover this employee!")
+                    .setContentText("You want to archive this employee?")
                     .setConfirmText("Confirm")
                     .setConfirmClickListener(sDialog -> {
                         sDialog.dismissWithAnimation();
@@ -75,9 +80,23 @@ public class EmployeeAdapter extends RecyclerView.Adapter<EmployeeAdapter.Employ
                         notifyDataSetChanged();
 
                         new SweetAlertDialog(context, SweetAlertDialog.SUCCESS_TYPE)
-                                .setTitleText("Deleted!")
-                                .setContentText("Employee has been deleted!")
+                                .setTitleText("Archived!")
+                                .setContentText("Employee has been archived!")
                                 .show();
+
+                        ((App) context.getApplicationContext()).syncUsersOnLogout(context, new App.SyncCallback() {
+                            @Override
+                            public void onSuccess() {
+                                // Success logic
+                                Log.d("EmployeeAdapter", "Employee has been archived!");
+                            }
+
+                            @Override
+                            public void onFailure(String errorMessage) {
+                                // Failure logic
+                                Toast.makeText(context, "Error: " + errorMessage, Toast.LENGTH_SHORT).show();
+                            }
+                        });
                     })
                     .setCancelButton("Cancel", SweetAlertDialog::dismissWithAnimation)
                     .show();

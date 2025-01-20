@@ -71,7 +71,7 @@ public class Configuration extends AppCompatActivity {
         SQLiteDatabase db = dbHelper.getReadableDatabase();
         Cursor cursor = db.rawQuery("SELECT * FROM " + DatabaseHelper.TABLE_TIME_ENTRIES + " WHERE is_synced = 0", null);
 
-        if (cursor.getCount() <= 1) {
+        if (cursor.getCount() == 0) {
             cursor.close();
             db.close();
             new SweetAlertDialog(Configuration.this, SweetAlertDialog.WARNING_TYPE)
@@ -331,6 +331,14 @@ public class Configuration extends AppCompatActivity {
         }
     }
 
+    private String nullToEmptyString(String val) {
+        if (val == null || val.equals("null")) {
+            return null;
+        } else {
+            return val;
+        }
+    }
+
     @SuppressLint("Range")
     public void syncUsers() {
         DatabaseHelper dbHelper = new DatabaseHelper(this);
@@ -358,8 +366,8 @@ public class Configuration extends AppCompatActivity {
             jsonBuilder.append("\"first_name\":\"").append(cursor.getString(cursor.getColumnIndex(DatabaseHelper.COLUMN_FIRST_NAME))).append("\",");
             jsonBuilder.append("\"middle_name\":\"").append(cursor.getString(cursor.getColumnIndex(DatabaseHelper.COLUMN_MIDDLE_NAME))).append("\",");
             jsonBuilder.append("\"last_name\":\"").append(cursor.getString(cursor.getColumnIndex(DatabaseHelper.COLUMN_LAST_NAME))).append("\",");
-            jsonBuilder.append("\"lat\":").append(cursor.getDouble(cursor.getColumnIndex(DatabaseHelper.COLUMN_LAT))).append(",");
-            jsonBuilder.append("\"lon\":").append(cursor.getDouble(cursor.getColumnIndex(DatabaseHelper.COLUMN_LON))).append(",");
+//            jsonBuilder.append("\"lat\":").append(cursor.getDouble(cursor.getColumnIndex(DatabaseHelper.COLUMN_LAT))).append(",");
+//            jsonBuilder.append("\"lon\":").append(cursor.getDouble(cursor.getColumnIndex(DatabaseHelper.COLUMN_LON))).append(",");
             jsonBuilder.append("\"address1\":\"").append(cursor.getString(cursor.getColumnIndex(DatabaseHelper.COLUMN_ADDRESS1))).append("\",");
             jsonBuilder.append("\"address2\":\"").append(cursor.getString(cursor.getColumnIndex(DatabaseHelper.COLUMN_ADDRESS2))).append("\",");
             jsonBuilder.append("\"barangay\":\"").append(cursor.getString(cursor.getColumnIndex(DatabaseHelper.COLUMN_BARANGAY))).append("\",");
@@ -377,7 +385,7 @@ public class Configuration extends AppCompatActivity {
 //            jsonBuilder.append("\"is_synced\":").append(cursor.getInt(cursor.getColumnIndex(DatabaseHelper.COLUMN_IS_SYNCED))).append(",");
             jsonBuilder.append("\"created_at\":\"").append(cursor.getString(cursor.getColumnIndex(DatabaseHelper.COLUMN_CREATED_AT))).append("\",");
             jsonBuilder.append("\"updated_at\":\"").append(cursor.getString(cursor.getColumnIndex(DatabaseHelper.COLUMN_UPDATED_AT))).append("\",");
-            jsonBuilder.append("\"deleted_at\":\"").append(cursor.getString(cursor.getColumnIndex(DatabaseHelper.COLUMN_DELETED_AT))).append("\",");
+//            jsonBuilder.append("\"deleted_at\":\"").append(nullToEmptyString(cursor.getString(cursor.getColumnIndex(DatabaseHelper.COLUMN_DELETED_AT)))).append("\",");
             jsonBuilder.append("\"deleted_by\":\"").append(cursor.getString(cursor.getColumnIndex(DatabaseHelper.COLUMN_DELETED_BY))).append("\",");
 
             // Fetch biometrics for the user

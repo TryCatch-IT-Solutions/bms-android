@@ -1,8 +1,11 @@
 // src/main/java/com/example/bms/enrollment/EnrollmentList.java
 package com.example.bms.enrollment;
 
+import android.content.Context;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.os.Bundle;
+import android.util.Base64;
 import android.view.View;
 import android.widget.Toast;
 
@@ -12,6 +15,7 @@ import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
 import com.example.bms.DatabaseHelper;
+import com.example.bms.EncryptionUtil;
 import com.example.bms.Group;
 import com.example.bms.GroupActivity;
 import com.example.bms.MainActivity;
@@ -28,6 +32,38 @@ public class EnrollmentList extends AppCompatActivity {
     private EmployeeAdapter employeeAdapter;
     private DatabaseHelper dbHelper;
 
+    public String getGroupId(Context context) {
+        try {
+            SharedPreferences sharedPreferences = context.getSharedPreferences("user_prefs", Context.MODE_PRIVATE);
+            String encryptedData = sharedPreferences.getString("user_data", null);
+            if (encryptedData != null) {
+                byte[] decodedData = Base64.decode(encryptedData, Base64.DEFAULT);
+                String decryptedData = EncryptionUtil.decrypt(decodedData);
+                String[] userData = decryptedData.split(",");
+                return userData[3];
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return null;
+    }
+
+    public String getRole(Context context) {
+        try {
+            SharedPreferences sharedPreferences = context.getSharedPreferences("user_prefs", Context.MODE_PRIVATE);
+            String encryptedData = sharedPreferences.getString("user_data", null);
+            if (encryptedData != null) {
+                byte[] decodedData = Base64.decode(encryptedData, Base64.DEFAULT);
+                String decryptedData = EncryptionUtil.decrypt(decodedData);
+                String[] userData = decryptedData.split(",");
+                return userData[4];
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return null;
+    }
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -39,8 +75,15 @@ public class EnrollmentList extends AppCompatActivity {
         setSupportActionBar(toolbar);
         binding.toolbarLayout.setTitle(getTitle());
 
+
         dbHelper = new DatabaseHelper(this);
-        List<User> employeeList = dbHelper.getAllUsers();
+        List<User> employeeList;
+        if(getRole(this).equals("superadmin")) {
+            employeeList = dbHelper.getAllUsers();
+        } else {
+            String groupId = getGroupId(this);
+            employeeList = dbHelper.getUsersByGroupId(groupId);
+        }
 
         recyclerView = findViewById(R.id.recycler_view);
         recyclerView.setLayoutManager(new LinearLayoutManager(this));

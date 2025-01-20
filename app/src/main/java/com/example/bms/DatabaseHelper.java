@@ -21,7 +21,7 @@ import java.util.List;
 public class DatabaseHelper extends SQLiteOpenHelper {
 
     private static final String DATABASE_NAME = "bms.db";
-    private static final int DATABASE_VERSION = 23;
+    private static final int DATABASE_VERSION = 24;
 
     public static final String TABLE_USERS = "users";
     public static final String COLUMN_ID = "id";
@@ -177,6 +177,24 @@ public class DatabaseHelper extends SQLiteOpenHelper {
             TABLE_TIME_ENTRIES, COLUMN_ID, COLUMN_USER_ID, COLUMN_TYPE, COLUMN_TYPE, COLUMN_DATETIME, COLUMN_METADATA, COLUMN_IS_SYNCED,
             COLUMN_CREATED_AT, COLUMN_UPDATED_AT, COLUMN_DELETED_AT, COLUMN_DELETED_BY
     );
+    public static final String TABLE_ANNOUNCEMENTS = "announcements";
+    public static final String COLUMN_TITLE = "title";
+    public static final String COLUMN_MESSAGE = "message";
+    public static final String COLUMN_EXPIRATION = "expiration";
+
+    private static final String TABLE_CREATE_ANNOUNCEMENTS = String.format(
+            "CREATE TABLE %s (" +
+                    "%s INTEGER PRIMARY KEY AUTOINCREMENT, " +
+                    "%s INTEGER, " +
+                    "%s TEXT, " +
+                    "%s TEXT, " +
+                    "%s DATETIME, " +
+                    "%s DATETIME, " +
+                    "%s DATETIME, " +
+                    "%s INTEGER);",
+            TABLE_ANNOUNCEMENTS, COLUMN_ID, COLUMN_USER_ID, COLUMN_TITLE, COLUMN_MESSAGE, COLUMN_EXPIRATION, COLUMN_CREATED_AT, COLUMN_UPDATED_AT, COLUMN_DELETED_AT, COLUMN_DELETED_BY
+    );
+
 
 
     private static final String INSERT_SAMPLE_GROUPS = String.format(
@@ -381,6 +399,7 @@ public class DatabaseHelper extends SQLiteOpenHelper {
         db.execSQL(TABLE_CREATE_DEVICES);
 //        db.execSQL(INSERT_SAMPLE_GROUPS);
         db.execSQL(TABLE_CREATE_TIME_ENTRIES);
+        db.execSQL(TABLE_CREATE_ANNOUNCEMENTS);
 //        insertSuperAdmin(db);
 //        insertGroupAdmin(db);
     }
@@ -415,10 +434,48 @@ public class DatabaseHelper extends SQLiteOpenHelper {
         db.insert(TABLE_USERS, null, values);
     }
 
+    public List<User> getUsersByGroupId(String groupId) {
+        List<User> users = new ArrayList<>();
+        SQLiteDatabase db = this.getReadableDatabase();
+        Cursor cursor = db.rawQuery("SELECT * FROM " + TABLE_USERS + " WHERE " + COLUMN_GROUP_ID + " = ? AND " + COLUMN_STATUS + " = 'active'", new String[]{groupId});
+
+        if (cursor.moveToFirst()) {
+            do {
+                String userId = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_ID));
+                String firstName = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_FIRST_NAME));
+                String lastName = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_LAST_NAME));
+                String middleName = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_MIDDLE_NAME));
+                String storedHashedPassword = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_PASSWORD));
+                String role = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_ROLE));
+                long groupIdLong = cursor.getLong(cursor.getColumnIndexOrThrow(COLUMN_GROUP_ID));
+                String email = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_EMAIL));
+                String phone = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_PHONE_NUMBER));
+                String address1 = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_ADDRESS1));
+                String address2 = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_ADDRESS2));
+                String barangay = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_BARANGAY));
+                String municipality = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_MUNICIPALITY));
+                String province = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_PROVINCE));
+                String birthDate = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_BIRTH_DATE));
+                String gender = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_GENDER));
+                String zipCode = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_ZIP_CODE));
+                String emergencyContactName = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_EMERGENCY_CONTACT_NAME));
+                String emergencyContactNo = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_EMERGENCY_CONTACT_NO));
+                String status = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_STATUS));
+                int isSynced = cursor.getInt(cursor.getColumnIndexOrThrow(COLUMN_IS_SYNCED));
+
+                users.add(new User(userId, firstName + " " + lastName, firstName, middleName, lastName, email, phone, storedHashedPassword, groupIdLong, role,
+                        address1, address2, barangay, municipality, province, birthDate, gender, zipCode, emergencyContactName, emergencyContactNo, status, isSynced));
+            } while (cursor.moveToNext());
+        }
+        cursor.close();
+        db.close();
+        return users;
+    }
+
     public List<User> getAllUsers() {
         List<User> users = new ArrayList<>();
         SQLiteDatabase db = this.getReadableDatabase();
-        Cursor cursor = db.rawQuery("SELECT * FROM " + TABLE_USERS + " WHERE " + COLUMN_DELETED_AT + " IS NULL", null);
+        Cursor cursor = db.rawQuery("SELECT * FROM " + TABLE_USERS + " WHERE " + COLUMN_STATUS + " IS 'active'", null);
 
         if (cursor.moveToFirst()) {
             do {

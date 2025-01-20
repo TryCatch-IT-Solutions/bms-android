@@ -31,6 +31,8 @@ public class EnrollmentShow extends AppCompatActivity {
             return insets;
         });
 
+        findViewById(R.id.backButton).setOnClickListener(v -> finish());
+
         if (employeeId != null) {
             try (DatabaseHelper dbHelper = new DatabaseHelper(this)) {
                employee = dbHelper.getUserById(employeeId);
