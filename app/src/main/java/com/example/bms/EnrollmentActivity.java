@@ -17,10 +17,12 @@ import android.graphics.Color;
 import android.hibory.Conversion;
 import android.net.Uri;
 import android.nfc.NfcAdapter;
+import android.nfc.NfcManager;
 import android.nfc.Tag;
 import android.os.Bundle;
 
 import com.example.bms.enrollment.EnrollmentEdit;
+import com.example.bms.ui.login.LoginActivity;
 import com.google.android.material.appbar.CollapsingToolbarLayout;
 import com.google.android.material.card.MaterialCardView;
 
@@ -31,6 +33,8 @@ import androidx.appcompat.widget.Toolbar;
 import androidx.core.widget.NestedScrollView;
 
 import android.os.Environment;
+import android.os.Handler;
+import android.os.Looper;
 import android.provider.Settings;
 import android.text.Editable;
 import android.text.InputFilter;
@@ -78,6 +82,8 @@ public class EnrollmentActivity extends AppCompatActivity {
     private MaterialCardView scanFaceCard;
 
     private Spinner genderSpinner;
+
+    SweetAlertDialog sweetAlertDialog;
 
 
     private static final int FINGERPRINT_SCAN_REQUEST_CODE = 1;
@@ -430,6 +436,20 @@ public class EnrollmentActivity extends AppCompatActivity {
                 return;
             }
 
+            if(phone.equals(emergencyContact)){
+                Toast.makeText(this, "Phone number and emergency contact number cannot be the same", Toast.LENGTH_SHORT).show();
+                return;
+            }
+
+            new Handler(Looper.getMainLooper()).postDelayed(new Runnable() {
+                @Override
+                public void run() {
+                    sweetAlertDialog =  new SweetAlertDialog(EnrollmentActivity.this, SweetAlertDialog.PROGRESS_TYPE);
+                    sweetAlertDialog.setTitleText("Saving Enrollment");
+                    sweetAlertDialog.show();
+                }
+            }, 100);
+
             zipCode = Integer.parseInt(zipCodeInput.getText().toString());
 
             UserRepository userRepository = new UserRepository(this);
@@ -467,14 +487,9 @@ public class EnrollmentActivity extends AppCompatActivity {
                 @Override
                 public void onSuccess() {
                     Toast.makeText(EnrollmentActivity.this, "Enrollment saved successfully", Toast.LENGTH_SHORT).show();
-                    new SweetAlertDialog(EnrollmentActivity.this, SweetAlertDialog.SUCCESS_TYPE)
-                            .setTitleText("Success")
-                            .setContentText("Enrollment saved successfully")
-                            .setConfirmClickListener(sweetAlertDialog -> {
-                                sweetAlertDialog.dismissWithAnimation();
-                                finish();
-                            })
-                            .show();
+                    if(sweetAlertDialog != null){
+                        sweetAlertDialog.dismiss();
+                    }
                     finish();
                 }
 
@@ -483,6 +498,9 @@ public class EnrollmentActivity extends AppCompatActivity {
                     // Handle failure
                     Toast.makeText(EnrollmentActivity.this, "Sync failed: " + errorMessage, Toast.LENGTH_SHORT).show();
                     Log.d("Errorrrrr", errorMessage);
+                    if(sweetAlertDialog != null){
+                        sweetAlertDialog.dismiss();
+                    }
                     finish();
                 }
             });
@@ -562,13 +580,29 @@ public class EnrollmentActivity extends AppCompatActivity {
     @Override
     protected void onStart() {
         super.onStart();
+
         mNfcAdapter = NfcAdapter.getDefaultAdapter(this);
+
+        NfcManager manager = (NfcManager) getSystemService(Context.NFC_SERVICE);
+        mNfcAdapter = manager.getDefaultAdapter();
+
+        System.out.println("The adapter is: " + mNfcAdapter);
+
         if (mNfcAdapter == null) {
             // Device does not support NFC
-            Toast.makeText(this, "Device does not support NFC", Toast.LENGTH_SHORT).show();
+            new SweetAlertDialog(EnrollmentActivity.this, SweetAlertDialog.ERROR_TYPE)
+                    .setTitleText("NFC Not Supported")
+                    .setContentText("This device does not support NFC")
+                    .show();
+            return;
         }
         if (!mNfcAdapter.isEnabled()) {
             // NFC is not enabled
+            new SweetAlertDialog(EnrollmentActivity.this, SweetAlertDialog.ERROR_TYPE)
+                    .setTitleText("NFC Not Enabled")
+                    .setContentText("Please enable NFC in settings")
+                    .show();
+            return;
         }
         mPendingIntent = PendingIntent.getActivity(this, 0, new Intent(this, getClass()).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP), PendingIntent.FLAG_MUTABLE);
     }
@@ -576,7 +610,9 @@ public class EnrollmentActivity extends AppCompatActivity {
     @Override
     protected void onResume() {
         super.onResume();
-        mNfcAdapter.enableForegroundDispatch(this, mPendingIntent, null, null);
+        if (mNfcAdapter != null) {
+            mNfcAdapter.enableForegroundDispatch(this, mPendingIntent, null, null);
+        }
     }
 
     @Override

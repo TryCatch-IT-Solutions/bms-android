@@ -15,7 +15,9 @@ import android.util.Log;
 
 import com.example.bms.data.LoginDataSource;
 import com.example.bms.data.model.LoggedInUser;
+import com.example.bms.data.model.User;
 import com.example.bms.time_entry.TimeRepository;
+import com.example.bms.ui.login.LoginActivity;
 import com.github.yuweiguocn.library.greendao.MigrationHelper;
 import com.google.android.material.textfield.TextInputEditText;
 
@@ -88,23 +90,140 @@ public class App extends Application {
 
         daoSession = getDaoSession();
 
+        Log.d("Device", "DeviceGroupId Here: " + getDeviceGroupId());
 
-        // Initialize the handler and runnable
-        handler = new Handler(Looper.getMainLooper());
-        runnable = new Runnable() {
+        String access = getAccess();
+        if(access.equals("online")) {
+            // Initialize the handler and runnable
+            handler = new Handler(Looper.getMainLooper());
+            runnable = new Runnable() {
+                @Override
+                public void run() {
+                    // Call the getTimeEntries method
+                    getTimeEntries();
+                    getAnnouncements();
+
+                    ExecutorService executor = Executors.newSingleThreadExecutor();
+                    executor.execute(()-> syncUsersFromWeb());
+                    // Schedule the runnable to run again after 1 minute (60000 milliseconds)
+                    handler.postDelayed(this, 60000);
+                }
+            };
+
+            // Start the initial runnable task by posting it to the handler
+            handler.post(runnable);
+        }
+    }
+
+    private void syncUsersFromWeb(){
+
+        String access = getAccess();
+        if(access.equals("offline")) {
+            return;
+        }
+
+        Log.d("SyncingUsers","Syncing users from web");
+
+        syncUsersOnLogout(App.this, new SyncCallback() {
             @Override
-            public void run() {
-                // Call the getTimeEntries method
-                getTimeEntries();
-                getAnnouncements();
+            public void onSuccess() {
 
-                // Schedule the runnable to run again after 1 minute (60000 milliseconds)
-                handler.postDelayed(this, 60000);
+                try {
+                    Log.d("SyncingUsers",App.BASE_URL + "/sync/users/login");
+
+                    URL url = new URL(App.BASE_URL + "/sync/users/login");
+                    HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+                    conn.setRequestMethod("GET");
+                    conn.setRequestProperty("Accept", "application/json");
+                    conn.setRequestProperty("Authorization", "Bearer " + App.TOKEN);
+
+                    if (conn.getResponseCode() != 200) {
+                        throw new RuntimeException("Failed : HTTP error code : " + conn.getResponseCode());
+                    }
+
+                    BufferedReader br = new BufferedReader(new InputStreamReader((conn.getInputStream())));
+
+                    StringBuilder response = new StringBuilder();
+                    String output;
+                    while ((output = br.readLine()) != null) {
+                        response.append(output);
+                    }
+
+                    conn.disconnect();
+
+                    Log.d("Response 1:", response.toString());
+                    JSONArray users = new JSONArray(response.toString());
+                    UserRepository userRepository = new UserRepository(App.this);
+
+                    BiometricRepository biometricRepository = new BiometricRepository(App.this);
+                    FingerprintRepository fingerprintRepository = new FingerprintRepository(App.this);
+
+                    for (int i = 0; i < users.length(); i++) {
+                        JSONObject user = users.getJSONObject(i);
+                        System.out.println("User: " + user.toString());
+
+                        long groupId = user.isNull("group_id") ? 0 : user.getLong("group_id");
+                        System.out.println("GGroup ID: " + groupId);
+                        long userId = userRepository.insertOrUpdate(
+                                groupId,
+                                user.getString("first_name"),
+                                user.getString("middle_name"),
+                                user.getString("last_name"),
+                                user.getString("address1"),
+                                user.getString("address2"),
+                                user.getString("barangay"),
+                                user.getString("municipality"),
+                                user.getString("province"),
+                                user.getString("birth_date"),
+                                user.getString("gender"),
+                                user.getInt("zip_code"),
+                                0,
+                                0,
+                                user.getString("email"),
+                                user.getString("phone_number"),
+                                user.getString("emergency_contact_no"),
+                                user.getString("emergency_contact_name"),
+                                user.getString("role"),
+                                user.getString("password"),
+                                user.getString("created_at")
+                                );
+
+                        JSONArray biometrics = user.getJSONArray("biometrics");
+                        for (int j = 0; j < biometrics.length(); j++) {
+                            JSONObject biometric = biometrics.getJSONObject(j);
+                            long biometricId = biometricRepository.insertOrUpdateBiometric(
+                                    biometric.getString("key"),
+                                    userId,
+                                    biometric.getString("type"));
+
+                            JSONArray fingerprints = biometric.getJSONArray("fingerprints");
+                            for (int k = 0; k < fingerprints.length(); k++) {
+                                JSONObject fingerprint = fingerprints.getJSONObject(k);
+
+                                byte[] decodedBytes = Base64.decode(fingerprint.getString("key"), Base64.DEFAULT);
+                                String decodedKey = new String(decodedBytes, StandardCharsets.UTF_8);
+                                fingerprintRepository.insertOrUpdateFingerprint(
+                                        biometricId,
+                                        decodedKey
+                                );
+                            }
+                        }
+                    }
+
+                } catch (Exception e) {
+                    e.printStackTrace();
+                    Log.e("LoginActivity", "Error during user sync: " + e.getMessage(), e);
+                }
+
             }
-        };
 
-        // Start the initial runnable task by posting it to the handler
-        handler.post(runnable);
+            @Override
+            public void onFailure(String errorMessage) {
+                Log.e("SyncUsers", "Error syncing users: " + errorMessage);
+            }
+        });
+
+
     }
 
     public UserDao getUserDao() {
@@ -133,6 +252,11 @@ public class App extends Application {
         }
     }
 
+    private String getDeviceGroupId(){
+        SharedPreferences sharedPreferences = getSharedPreferences("DEVICE_GROUP", Context.MODE_PRIVATE);
+        return sharedPreferences.getString(GroupActivity.KEY_SELECTED_GROUP, null);
+    }
+
     public String getToken(Context context) {
         try {
             SharedPreferences sharedPreferences = context.getSharedPreferences("user_prefs", Context.MODE_PRIVATE);
@@ -148,6 +272,7 @@ public class App extends Application {
         }
         return null;
     }
+
 
     public interface SyncCallback {
         void onSuccess();
@@ -327,8 +452,12 @@ public class App extends Application {
             public void run() {
 
                 DatabaseHelper dbHelper = new DatabaseHelper(context);
+
                 SQLiteDatabase db = dbHelper.getReadableDatabase();
-                Cursor cursor = db.rawQuery("SELECT * FROM " + DatabaseHelper.TABLE_TIME_ENTRIES + " WHERE is_synced = 0", null);
+                Cursor cursor = db.rawQuery(
+                        "SELECT te.*, u." + DatabaseHelper.COLUMN_EMAIL + " FROM " + DatabaseHelper.TABLE_TIME_ENTRIES + " te " +
+                                "JOIN " + DatabaseHelper.TABLE_USERS + " u ON te." + DatabaseHelper.COLUMN_USER_ID + " = u." + DatabaseHelper.COLUMN_ID +
+                                " WHERE te." + DatabaseHelper.COLUMN_IS_SYNCED + " = 0", null);
                 String token = getToken(context);
 
                 if (cursor.getCount() == 0) {
@@ -347,6 +476,7 @@ public class App extends Application {
                     jsonBuilder.append("{");
                     jsonBuilder.append("\"id\":").append(cursor.getInt(cursor.getColumnIndex(DatabaseHelper.COLUMN_ID))).append(",");
                     jsonBuilder.append("\"user_id\":").append(cursor.getInt(cursor.getColumnIndex(DatabaseHelper.COLUMN_USER_ID))).append(",");
+                    jsonBuilder.append("\"email\":\"").append(cursor.getString(cursor.getColumnIndex(DatabaseHelper.COLUMN_EMAIL))).append("\",");
                     jsonBuilder.append("\"type\":\"").append(cursor.getString(cursor.getColumnIndex(DatabaseHelper.COLUMN_TYPE))).append("\",");
                     jsonBuilder.append("\"datetime\":\"").append(cursor.getString(cursor.getColumnIndex(DatabaseHelper.COLUMN_DATETIME))).append("\",");
                     jsonBuilder.append("\"metadata\":\"").append(cursor.getString(cursor.getColumnIndex(DatabaseHelper.COLUMN_METADATA))).append("\",");

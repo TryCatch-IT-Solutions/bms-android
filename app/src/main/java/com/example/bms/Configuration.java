@@ -20,6 +20,7 @@ import android.widget.Toast;
 import androidx.activity.EdgeToEdge;
 import androidx.activity.OnBackPressedCallback;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.appcompat.widget.Toolbar;
 import androidx.core.graphics.Insets;
 import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
@@ -69,7 +70,10 @@ public class Configuration extends AppCompatActivity {
     private void syncTimeEntries() {
         DatabaseHelper dbHelper = new DatabaseHelper(this);
         SQLiteDatabase db = dbHelper.getReadableDatabase();
-        Cursor cursor = db.rawQuery("SELECT * FROM " + DatabaseHelper.TABLE_TIME_ENTRIES + " WHERE is_synced = 0", null);
+        Cursor cursor = db.rawQuery(
+                "SELECT te.*, u." + DatabaseHelper.COLUMN_EMAIL + " FROM " + DatabaseHelper.TABLE_TIME_ENTRIES + " te " +
+                        "JOIN " + DatabaseHelper.TABLE_USERS + " u ON te." + DatabaseHelper.COLUMN_USER_ID + " = u." + DatabaseHelper.COLUMN_ID +
+                        " WHERE te." + DatabaseHelper.COLUMN_IS_SYNCED + " = 0", null);
 
         if (cursor.getCount() == 0) {
             cursor.close();
@@ -87,6 +91,7 @@ public class Configuration extends AppCompatActivity {
             jsonBuilder.append("{");
             jsonBuilder.append("\"id\":").append(cursor.getInt(cursor.getColumnIndex(DatabaseHelper.COLUMN_ID))).append(",");
             jsonBuilder.append("\"user_id\":").append(cursor.getInt(cursor.getColumnIndex(DatabaseHelper.COLUMN_USER_ID))).append(",");
+            jsonBuilder.append("\"email\":\"").append(cursor.getString(cursor.getColumnIndex(DatabaseHelper.COLUMN_EMAIL))).append("\",");
             jsonBuilder.append("\"type\":\"").append(cursor.getString(cursor.getColumnIndex(DatabaseHelper.COLUMN_TYPE))).append("\",");
             jsonBuilder.append("\"datetime\":\"").append(cursor.getString(cursor.getColumnIndex(DatabaseHelper.COLUMN_DATETIME))).append("\",");
             jsonBuilder.append("\"metadata\":\"").append(cursor.getString(cursor.getColumnIndex(DatabaseHelper.COLUMN_METADATA))).append("\",");
@@ -185,11 +190,62 @@ public class Configuration extends AppCompatActivity {
         });
     }
 
+    private String getRole() {
+        try {
+            SharedPreferences sharedPreferences = getSharedPreferences("user_prefs", Context.MODE_PRIVATE);
+            String encryptedData = sharedPreferences.getString("user_data", null);
+            if (encryptedData != null) {
+                byte[] decodedData = Base64.decode(encryptedData, Base64.DEFAULT);
+                String decryptedData = EncryptionUtil.decrypt(decodedData);
+                String[] userData = decryptedData.split(",");
+                return userData[4];
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return null;
+    }
+
+    public String getGroupId(Context context) {
+        try {
+            SharedPreferences sharedPreferences = context.getSharedPreferences("user_prefs", Context.MODE_PRIVATE);
+            String encryptedData = sharedPreferences.getString("user_data", null);
+            if (encryptedData != null) {
+                byte[] decodedData = Base64.decode(encryptedData, Base64.DEFAULT);
+                String decryptedData = EncryptionUtil.decrypt(decodedData);
+                String[] userData = decryptedData.split(",");
+                return userData[3];
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return null;
+    }
+
     @SuppressLint("Range")
     private void exportUsersToCSV() {
         DatabaseHelper dbHelper = new DatabaseHelper(this);
         SQLiteDatabase db = dbHelper.getReadableDatabase();
-        Cursor cursor = db.rawQuery("SELECT * FROM " + DatabaseHelper.TABLE_USERS, null);
+
+        String role = getRole(); // Assume this method retrieves the current user's role
+        String groupId = getGroupId(this); // Assume this method retrieves the current user's group ID
+
+        String query;
+        String[] queryArgs;
+
+        if ("superadmin".equals(role)) {
+            query = "SELECT * FROM " + DatabaseHelper.TABLE_USERS + " WHERE " + DatabaseHelper.COLUMN_STATUS + " = 'active'";
+            queryArgs = new String[]{};
+        } else if ("groupadmin".equals(role)) {
+            query = "SELECT * FROM " + DatabaseHelper.TABLE_USERS + " WHERE " + DatabaseHelper.COLUMN_STATUS + " = 'active' AND " + DatabaseHelper.COLUMN_GROUP_ID + " = ?";
+            queryArgs = new String[]{groupId};
+        } else {
+            // Handle other roles if necessary
+            query = "SELECT * FROM " + DatabaseHelper.TABLE_USERS + " WHERE 1 = 0"; // No results
+            queryArgs = new String[]{};
+        }
+
+        Cursor cursor = db.rawQuery(query, queryArgs);
 
         File exportDir = new File(Environment.getExternalStorageDirectory(), "BMSExports");
         if (!exportDir.exists()) {
@@ -250,51 +306,60 @@ public class Configuration extends AppCompatActivity {
 
     @SuppressLint("Range")
     private void exportTimeEntriesToCSV() {
-        DatabaseHelper dbHelper = new DatabaseHelper(this);
-        SQLiteDatabase db = dbHelper.getReadableDatabase();
-        Cursor cursor = db.rawQuery("SELECT * FROM " + DatabaseHelper.TABLE_TIME_ENTRIES, null);
+    DatabaseHelper dbHelper = new DatabaseHelper(this);
+    SQLiteDatabase db = dbHelper.getReadableDatabase();
 
-        File exportDir = new File(Environment.getExternalStorageDirectory(), "BMSExports");
-        if (!exportDir.exists()) {
-            exportDir.mkdirs();
-        }
+    String groupId = getGroupId(this); // Assume this method retrieves the current user's group ID
+    Cursor cursor = db.rawQuery(
+                "SELECT te.*, u." + DatabaseHelper.COLUMN_FIRST_NAME + ", u." + DatabaseHelper.COLUMN_LAST_NAME + ", u." + DatabaseHelper.COLUMN_EMAIL +
+                        " FROM " + DatabaseHelper.TABLE_TIME_ENTRIES + " te " +
+                        "JOIN " + DatabaseHelper.TABLE_USERS + " u ON te." + DatabaseHelper.COLUMN_USER_ID + " = u." + DatabaseHelper.COLUMN_ID +
+                        " WHERE u." + DatabaseHelper.COLUMN_GROUP_ID + " = ?", new String[]{groupId});
 
-        // Get current date and time
-        String currentDateTime = new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(new Date());
-        File file = new File(exportDir, "time_entries_" + currentDateTime + ".csv");
-
-        try {
-            file.createNewFile();
-            FileWriter writer = new FileWriter(file);
-
-            // Write CSV header
-            writer.append("ID,User ID,Type,Datetime,Metadata,Is Synced,Created At,Updated At,Deleted At,Deleted By\n");
-
-            // Write CSV rows
-            while (cursor.moveToNext()) {
-                writer.append(cursor.getString(cursor.getColumnIndex(DatabaseHelper.COLUMN_ID))).append(",");
-                writer.append(cursor.getString(cursor.getColumnIndex(DatabaseHelper.COLUMN_USER_ID))).append(",");
-                writer.append(cursor.getString(cursor.getColumnIndex(DatabaseHelper.COLUMN_TYPE))).append(",");
-                writer.append(cursor.getString(cursor.getColumnIndex(DatabaseHelper.COLUMN_DATETIME))).append(",");
-                writer.append(cursor.getString(cursor.getColumnIndex(DatabaseHelper.COLUMN_METADATA))).append(",");
-                writer.append(cursor.getString(cursor.getColumnIndex(DatabaseHelper.COLUMN_IS_SYNCED))).append(",");
-                writer.append(cursor.getString(cursor.getColumnIndex(DatabaseHelper.COLUMN_CREATED_AT))).append(",");
-                writer.append(cursor.getString(cursor.getColumnIndex(DatabaseHelper.COLUMN_UPDATED_AT))).append(",");
-                writer.append(cursor.getString(cursor.getColumnIndex(DatabaseHelper.COLUMN_DELETED_AT))).append(",");
-                writer.append(cursor.getString(cursor.getColumnIndex(DatabaseHelper.COLUMN_DELETED_BY))).append("\n");
-            }
-
-            writer.flush();
-            writer.close();
-            cursor.close();
-            db.close();
-
-            Toast.makeText(this, "Exported to " + file.getAbsolutePath(), Toast.LENGTH_LONG).show();
-        } catch (IOException e) {
-            e.printStackTrace();
-            Toast.makeText(this, "Export failed", Toast.LENGTH_SHORT).show();
-        }
+    File exportDir = new File(Environment.getExternalStorageDirectory(), "BMSExports");
+    if (!exportDir.exists()) {
+        exportDir.mkdirs();
     }
+
+    // Get current date and time
+    String currentDateTime = new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(new Date());
+    File file = new File(exportDir, "time_entries_" + currentDateTime + ".csv");
+
+    try {
+        file.createNewFile();
+        FileWriter writer = new FileWriter(file);
+
+        // Write CSV header
+        writer.append("ID,User ID,First Name,Last Name,Email,Type,Datetime,Metadata,Is Synced,Created At,Updated At,Deleted At,Deleted By\n");
+
+        // Write CSV rows
+        while (cursor.moveToNext()) {
+            writer.append(cursor.getString(cursor.getColumnIndex(DatabaseHelper.COLUMN_ID))).append(",");
+            writer.append(cursor.getString(cursor.getColumnIndex(DatabaseHelper.COLUMN_USER_ID))).append(",");
+            writer.append(cursor.getString(cursor.getColumnIndex(DatabaseHelper.COLUMN_FIRST_NAME))).append(",");
+            writer.append(cursor.getString(cursor.getColumnIndex(DatabaseHelper.COLUMN_LAST_NAME))).append(",");
+            writer.append(cursor.getString(cursor.getColumnIndex(DatabaseHelper.COLUMN_EMAIL))).append(",");
+            writer.append(cursor.getString(cursor.getColumnIndex(DatabaseHelper.COLUMN_TYPE))).append(",");
+            writer.append(cursor.getString(cursor.getColumnIndex(DatabaseHelper.COLUMN_DATETIME))).append(",");
+            writer.append(cursor.getString(cursor.getColumnIndex(DatabaseHelper.COLUMN_METADATA))).append(",");
+            writer.append(cursor.getString(cursor.getColumnIndex(DatabaseHelper.COLUMN_IS_SYNCED))).append(",");
+            writer.append(cursor.getString(cursor.getColumnIndex(DatabaseHelper.COLUMN_CREATED_AT))).append(",");
+            writer.append(cursor.getString(cursor.getColumnIndex(DatabaseHelper.COLUMN_UPDATED_AT))).append(",");
+            writer.append(cursor.getString(cursor.getColumnIndex(DatabaseHelper.COLUMN_DELETED_AT))).append(",");
+            writer.append(cursor.getString(cursor.getColumnIndex(DatabaseHelper.COLUMN_DELETED_BY))).append("\n");
+        }
+
+        writer.flush();
+        writer.close();
+        cursor.close();
+        db.close();
+
+        Toast.makeText(this, "Exported to " + file.getAbsolutePath(), Toast.LENGTH_LONG).show();
+    } catch (IOException e) {
+        e.printStackTrace();
+        Toast.makeText(this, "Export failed", Toast.LENGTH_SHORT).show();
+    }
+}
 
     public String getToken(Context context) {
         try {
@@ -555,6 +620,45 @@ public class Configuration extends AppCompatActivity {
         overtimeOutSwitch.setChecked(sharedPreferences.getBoolean(KEY_TIME_REGISTER + "_overtime_out", false));
     }
 
+    private void disableTimeSwitches(){
+        SwitchMaterial checkInSwitch = findViewById(R.id.check_in_switch);
+        SwitchMaterial checkOutSwitch = findViewById(R.id.check_out_switch);
+        SwitchMaterial breakInSwitch = findViewById(R.id.break_in_switch);
+        SwitchMaterial breakOutSwitch = findViewById(R.id.break_out_switch);
+        SwitchMaterial overtimeInSwitch = findViewById(R.id.overtime_in_switch);
+        SwitchMaterial overtimeOutSwitch = findViewById(R.id.overtime_out_switch);
+
+        checkInSwitch.setEnabled(false);
+        checkOutSwitch.setEnabled(false);
+        breakInSwitch.setEnabled(false);
+        breakOutSwitch.setEnabled(false);
+        overtimeInSwitch.setEnabled(false);
+        overtimeOutSwitch.setEnabled(false);
+
+        checkInSwitch.setChecked(false);
+        checkOutSwitch.setChecked(false);
+        breakInSwitch.setChecked(false);
+        breakOutSwitch.setChecked(false);
+        overtimeInSwitch.setChecked(false);
+        overtimeOutSwitch.setChecked(false);
+    }
+
+    private void enableTimeSwitches(){
+        SwitchMaterial checkInSwitch = findViewById(R.id.check_in_switch);
+        SwitchMaterial checkOutSwitch = findViewById(R.id.check_out_switch);
+        SwitchMaterial breakInSwitch = findViewById(R.id.break_in_switch);
+        SwitchMaterial breakOutSwitch = findViewById(R.id.break_out_switch);
+        SwitchMaterial overtimeInSwitch = findViewById(R.id.overtime_in_switch);
+        SwitchMaterial overtimeOutSwitch = findViewById(R.id.overtime_out_switch);
+
+        checkInSwitch.setEnabled(true);
+        checkOutSwitch.setEnabled(true);
+        breakInSwitch.setEnabled(true);
+        breakOutSwitch.setEnabled(true);
+        overtimeInSwitch.setEnabled(true);
+        overtimeOutSwitch.setEnabled(true);
+    }
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -576,13 +680,27 @@ public class Configuration extends AppCompatActivity {
             }
         });
 
+        Toolbar toolbarHead = findViewById(R.id.toolbar_header);
+        toolbarHead.setNavigationOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                finish();
+            }
+        });
+
         // Get reference to the SwitchMaterial
         SwitchMaterial switchTimeRegister = findViewById(R.id.switch_time_register);
+
+        disableTimeSwitches();
 
         // Load the saved state
         SharedPreferences sharedPreferences = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
         boolean isTimeRegisterOn = sharedPreferences.getBoolean(KEY_TIME_REGISTER, false);
         switchTimeRegister.setChecked(isTimeRegisterOn);
+
+        if(isTimeRegisterOn){
+            enableTimeSwitches();
+        }
 
         token = getToken(this);
         Log.d("Configuration", "Token: " + token);
@@ -627,8 +745,10 @@ public class Configuration extends AppCompatActivity {
             editor.apply();
             // Show a toast message
             if (isChecked) {
+                enableTimeSwitches();
                 Toast.makeText(Configuration.this, "Time Register is ON", Toast.LENGTH_SHORT).show();
             } else {
+                disableTimeSwitches();
                 Toast.makeText(Configuration.this, "Time Register is OFF", Toast.LENGTH_SHORT).show();
             }
         });

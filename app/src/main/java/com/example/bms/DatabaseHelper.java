@@ -404,7 +404,28 @@ public class DatabaseHelper extends SQLiteOpenHelper {
 //        insertGroupAdmin(db);
     }
 
-    private void insertSuperAdmin(SQLiteDatabase db) {
+    public void resetUsersTable() {
+        SQLiteDatabase db = this.getWritableDatabase();
+        //delete all users
+        db.delete(DatabaseHelper.TABLE_USERS, null, null);
+        db.delete(DatabaseHelper.TABLE_BIOMETRICS, null, null);
+        db.delete(DatabaseHelper.TABLE_FINGERPRINTS, null, null);
+        db.delete(DatabaseHelper.TABLE_TIME_ENTRIES, null, null);
+        //reset autoincrement
+        db.execSQL("DELETE FROM SQLITE_SEQUENCE WHERE NAME = '" + DatabaseHelper.TABLE_USERS + "'");
+        db.execSQL("DELETE FROM SQLITE_SEQUENCE WHERE NAME = '" + DatabaseHelper.TABLE_BIOMETRICS + "'");
+        db.execSQL("DELETE FROM SQLITE_SEQUENCE WHERE NAME = '" + DatabaseHelper.TABLE_FINGERPRINTS + "'");
+        db.execSQL("DELETE FROM SQLITE_SEQUENCE WHERE NAME = '" + DatabaseHelper.TABLE_TIME_ENTRIES + "'");
+        db.execSQL("UPDATE SQLITE_SEQUENCE SET SEQ=0 WHERE NAME='" + DatabaseHelper.TABLE_USERS + "'");
+        db.execSQL("UPDATE SQLITE_SEQUENCE SET SEQ=0 WHERE NAME='" + DatabaseHelper.TABLE_BIOMETRICS + "'");
+        db.execSQL("UPDATE SQLITE_SEQUENCE SET SEQ=0 WHERE NAME='" + DatabaseHelper.TABLE_FINGERPRINTS + "'");
+        db.execSQL("UPDATE SQLITE_SEQUENCE SET SEQ=0 WHERE NAME='" + DatabaseHelper.TABLE_TIME_ENTRIES + "'");
+        db.close();
+    }
+
+    public void insertSuperAdmin() {
+        SQLiteDatabase db = this.getReadableDatabase();
+
         //insert admin user
         ContentValues values = new ContentValues();
         values.put(COLUMN_GROUP_ID, 1);
@@ -432,6 +453,153 @@ public class DatabaseHelper extends SQLiteOpenHelper {
         values.put(COLUMN_CREATED_AT, getCurrentDateTime());
         values.put(COLUMN_UPDATED_AT, getCurrentDateTime());
         db.insert(TABLE_USERS, null, values);
+    }
+
+    public List<User> searchUsersByGroupId(String query, String _groupId, int limit, int offset) {
+        List<User> users = new ArrayList<>();
+        SQLiteDatabase db = this.getReadableDatabase();
+        String searchQuery = "%" + query + "%";
+
+        String queryStr;
+        String[] queryArgs;
+
+      queryStr = "SELECT * FROM " + TABLE_USERS + " WHERE " + COLUMN_STATUS + " = 'active' AND " + COLUMN_GROUP_ID + " = ? AND " + COLUMN_ROLE + " != 'superadmin' AND (" +
+        COLUMN_FIRST_NAME + " LIKE ? COLLATE NOCASE OR " +
+        COLUMN_LAST_NAME + " LIKE ? COLLATE NOCASE OR " +
+        COLUMN_EMAIL + " LIKE ? COLLATE NOCASE OR " +
+        COLUMN_PHONE_NUMBER + " LIKE ? COLLATE NOCASE) LIMIT ? OFFSET ?";
+
+        queryArgs = new String[]{_groupId, searchQuery, searchQuery, searchQuery, searchQuery, String.valueOf(limit), String.valueOf(offset)};
+        Cursor cursor = db.rawQuery(queryStr, queryArgs);
+
+        if (cursor.moveToFirst()) {
+            do {
+                String userId = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_ID));
+                String firstName = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_FIRST_NAME));
+                String lastName = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_LAST_NAME));
+                String middleName = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_MIDDLE_NAME));
+                String storedHashedPassword = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_PASSWORD));
+                String role = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_ROLE));
+                long groupId = cursor.getLong(cursor.getColumnIndexOrThrow(COLUMN_GROUP_ID));
+                String email = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_EMAIL));
+                String phone = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_PHONE_NUMBER));
+                String address1 = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_ADDRESS1));
+                String address2 = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_ADDRESS2));
+                String barangay = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_BARANGAY));
+                String municipality = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_MUNICIPALITY));
+                String province = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_PROVINCE));
+                String birthDate = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_BIRTH_DATE));
+                String gender = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_GENDER));
+                String zipCode = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_ZIP_CODE));
+                String emergencyContactName = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_EMERGENCY_CONTACT_NAME));
+                String emergencyContactNo = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_EMERGENCY_CONTACT_NO));
+                String status = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_STATUS));
+                int isSynced = cursor.getInt(cursor.getColumnIndexOrThrow(COLUMN_IS_SYNCED));
+
+                users.add(new User(userId, firstName + " " + lastName, firstName, middleName, lastName, email, phone, storedHashedPassword, groupId, role,
+                        address1, address2, barangay, municipality, province, birthDate, gender, zipCode, emergencyContactName, emergencyContactNo, status, isSynced));
+            } while (cursor.moveToNext());
+        }
+        cursor.close();
+        db.close();
+        return users;
+    }
+
+
+    public List<User> searchUsers(String query, int limit, int offset, String groupId) {
+        List<User> users = new ArrayList<>();
+        SQLiteDatabase db = this.getReadableDatabase();
+        String searchQuery = "%" + query + "%";
+        String queryStr;
+        String[] queryArgs;
+
+        if (groupId != null) {
+            queryStr = "SELECT * FROM " + TABLE_USERS + " WHERE " + COLUMN_STATUS + " = 'active' AND " + COLUMN_GROUP_ID + " = ? AND (" +
+                    COLUMN_FIRST_NAME + " LIKE ? COLLATE NOCASE OR " +
+                    COLUMN_LAST_NAME + " LIKE ? COLLATE NOCASE OR " +
+                    COLUMN_EMAIL + " LIKE ? COLLATE NOCASE OR " +
+                    COLUMN_PHONE_NUMBER + " LIKE ? COLLATE NOCASE) LIMIT ? OFFSET ?";
+            queryArgs = new String[]{groupId, searchQuery, searchQuery, searchQuery, searchQuery, String.valueOf(limit), String.valueOf(offset)};
+        } else {
+            queryStr = "SELECT * FROM " + TABLE_USERS + " WHERE " + COLUMN_STATUS + " = 'active' AND (" +
+                    COLUMN_FIRST_NAME + " LIKE ? COLLATE NOCASE OR " +
+                    COLUMN_LAST_NAME + " LIKE ? COLLATE NOCASE OR " +
+                    COLUMN_EMAIL + " LIKE ? COLLATE NOCASE OR " +
+                    COLUMN_PHONE_NUMBER + " LIKE ? COLLATE NOCASE) LIMIT ? OFFSET ?";
+            queryArgs = new String[]{searchQuery, searchQuery, searchQuery, searchQuery, String.valueOf(limit), String.valueOf(offset)};
+        }
+
+        Cursor cursor = db.rawQuery(queryStr, queryArgs);
+
+        if (cursor.moveToFirst()) {
+            do {
+                String userId = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_ID));
+                String firstName = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_FIRST_NAME));
+                String lastName = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_LAST_NAME));
+                String middleName = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_MIDDLE_NAME));
+                String storedHashedPassword = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_PASSWORD));
+                String role = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_ROLE));
+                long groupIdLong = cursor.getLong(cursor.getColumnIndexOrThrow(COLUMN_GROUP_ID));
+                String email = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_EMAIL));
+                String phone = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_PHONE_NUMBER));
+                String address1 = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_ADDRESS1));
+                String address2 = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_ADDRESS2));
+                String barangay = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_BARANGAY));
+                String municipality = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_MUNICIPALITY));
+                String province = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_PROVINCE));
+                String birthDate = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_BIRTH_DATE));
+                String gender = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_GENDER));
+                String zipCode = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_ZIP_CODE));
+                String emergencyContactName = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_EMERGENCY_CONTACT_NAME));
+                String emergencyContactNo = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_EMERGENCY_CONTACT_NO));
+                String status = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_STATUS));
+                int isSynced = cursor.getInt(cursor.getColumnIndexOrThrow(COLUMN_IS_SYNCED));
+
+                users.add(new User(userId, firstName + " " + lastName, firstName, middleName, lastName, email, phone, storedHashedPassword, groupIdLong, role,
+                        address1, address2, barangay, municipality, province, birthDate, gender, zipCode, emergencyContactName, emergencyContactNo, status, isSynced));
+            } while (cursor.moveToNext());
+        }
+        cursor.close();
+        db.close();
+        return users;
+    }
+
+    public List<User> getPaginatedUsersByGroupId(String groupId, int limit, int offset) {
+        List<User> users = new ArrayList<>();
+        SQLiteDatabase db = this.getReadableDatabase();
+        Cursor cursor = db.rawQuery("SELECT * FROM " + TABLE_USERS + " WHERE " + COLUMN_GROUP_ID + " = ? AND " + COLUMN_STATUS + " = 'active' AND " + COLUMN_ROLE + " != 'superadmin' ORDER BY " + COLUMN_CREATED_AT + " DESC LIMIT ? OFFSET ?", new String[]{groupId, String.valueOf(limit), String.valueOf(offset)});
+
+        if (cursor.moveToFirst()) {
+            do {
+                String userId = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_ID));
+                String firstName = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_FIRST_NAME));
+                String lastName = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_LAST_NAME));
+                String middleName = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_MIDDLE_NAME));
+                String storedHashedPassword = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_PASSWORD));
+                String role = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_ROLE));
+                long groupIdLong = cursor.getLong(cursor.getColumnIndexOrThrow(COLUMN_GROUP_ID));
+                String email = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_EMAIL));
+                String phone = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_PHONE_NUMBER));
+                String address1 = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_ADDRESS1));
+                String address2 = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_ADDRESS2));
+                String barangay = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_BARANGAY));
+                String municipality = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_MUNICIPALITY));
+                String province = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_PROVINCE));
+                String birthDate = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_BIRTH_DATE));
+                String gender = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_GENDER));
+                String zipCode = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_ZIP_CODE));
+                String emergencyContactName = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_EMERGENCY_CONTACT_NAME));
+                String emergencyContactNo = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_EMERGENCY_CONTACT_NO));
+                String status = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_STATUS));
+                int isSynced = cursor.getInt(cursor.getColumnIndexOrThrow(COLUMN_IS_SYNCED));
+
+                users.add(new User(userId, firstName + " " + lastName, firstName, middleName, lastName, email, phone, storedHashedPassword, groupIdLong, role,
+                        address1, address2, barangay, municipality, province, birthDate, gender, zipCode, emergencyContactName, emergencyContactNo, status, isSynced));
+            } while (cursor.moveToNext());
+        }
+        cursor.close();
+        db.close();
+        return users;
     }
 
     public List<User> getUsersByGroupId(String groupId) {
@@ -471,6 +639,46 @@ public class DatabaseHelper extends SQLiteOpenHelper {
         db.close();
         return users;
     }
+
+    public List<User> getPaginatedUsers(int limit, int offset) {
+        List<User> users = new ArrayList<>();
+        SQLiteDatabase db = this.getReadableDatabase();
+
+        Cursor cursor = db.rawQuery("SELECT * FROM " + TABLE_USERS + " WHERE " + COLUMN_STATUS + " IS 'active' ORDER BY " + COLUMN_CREATED_AT + " DESC LIMIT ? OFFSET ?", new String[]{String.valueOf(limit), String.valueOf(offset)});
+
+        if (cursor.moveToFirst()) {
+            do {
+                String userId = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_ID));
+                String firstName = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_FIRST_NAME));
+                String lastName = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_LAST_NAME));
+                String middleName = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_MIDDLE_NAME));
+                String storedHashedPassword = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_PASSWORD));
+                String role = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_ROLE));
+                long groupId = cursor.getLong(cursor.getColumnIndexOrThrow(COLUMN_GROUP_ID));
+                String email = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_EMAIL));
+                String phone = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_PHONE_NUMBER));
+                String address1 = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_ADDRESS1));
+                String address2 = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_ADDRESS2));
+                String barangay = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_BARANGAY));
+                String municipality = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_MUNICIPALITY));
+                String province = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_PROVINCE));
+                String birthDate = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_BIRTH_DATE));
+                String gender = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_GENDER));
+                String zipCode = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_ZIP_CODE));
+                String emergencyContactName = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_EMERGENCY_CONTACT_NAME));
+                String emergencyContactNo = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_EMERGENCY_CONTACT_NO));
+                String status = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_STATUS));
+                int isSynced = cursor.getInt(cursor.getColumnIndexOrThrow(COLUMN_IS_SYNCED));
+
+                users.add(new User(userId, firstName + " " + lastName, firstName, middleName, lastName, email, phone, storedHashedPassword, groupId, role,
+                        address1, address2, barangay, municipality, province, birthDate, gender, zipCode, emergencyContactName, emergencyContactNo, status, isSynced));
+            } while (cursor.moveToNext());
+        }
+        cursor.close();
+        db.close();
+        return users;
+    }
+
 
     public List<User> getAllUsers() {
         List<User> users = new ArrayList<>();

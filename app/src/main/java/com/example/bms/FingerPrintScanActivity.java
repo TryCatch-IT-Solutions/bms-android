@@ -119,7 +119,7 @@ public class FingerPrintScanActivity extends AppCompatActivity {
                             AlertDialog retryDialog =
                                     new AlertDialog.Builder(FingerPrintScanActivity.this)
                                             .setCancelable(false)
-                                            .setTitle("INIT").setMessage(s)
+                                            .setTitle("INIT FAILED").setMessage("Failed to initialize fingerprint scanner")
                                             .setPositiveButton("Try Again",
                                                     new DialogInterface.OnClickListener() {
                                                         @Override

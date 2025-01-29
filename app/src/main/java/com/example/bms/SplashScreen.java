@@ -7,6 +7,7 @@ import android.content.pm.PackageManager;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.util.Base64;
 import android.util.Log;
 import android.widget.Toast;
 
@@ -40,6 +41,25 @@ public class SplashScreen extends AppCompatActivity {
     SharedPreferences sharedPreferences;
     String savedGroupId;
 
+
+
+    private String getToken() {
+        try {
+            SharedPreferences sharedPreferences = getSharedPreferences("user_prefs", Context.MODE_PRIVATE);
+            String encryptedData = sharedPreferences.getString("user_data", null);
+            if (encryptedData != null) {
+                byte[] decodedData = Base64.decode(encryptedData, Base64.DEFAULT);
+                String decryptedData = EncryptionUtil.decrypt(decodedData);
+                String[] userData = decryptedData.split(",");
+                return userData[5]; // Assuming the token is the 6th element in the array
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return null;
+    }
+
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         sharedPreferences= getSharedPreferences(GroupActivity.PREFS_NAME, Context.MODE_PRIVATE);
@@ -55,7 +75,8 @@ public class SplashScreen extends AppCompatActivity {
         LoginDataSource loginDataSource = new LoginDataSource(SplashScreen.this);
         LoggedInUser data = loginDataSource.getUserData(this);
 
-        if (data == null) {
+        Log.d("SplashScreen", "onCreate: Token-" + getToken());
+        if (getToken() == null) {
             startActivity(new Intent(SplashScreen.this, LoginActivity.class));
             finish();
             return;

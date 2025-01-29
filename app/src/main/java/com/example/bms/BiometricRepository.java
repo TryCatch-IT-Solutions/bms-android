@@ -29,6 +29,32 @@ public class BiometricRepository {
         return id;
     }
 
+    public long insertOrUpdateBiometric(String key, long userId, String type) {
+        SQLiteDatabase db = dbHelper.getWritableDatabase();
+        ContentValues values = new ContentValues();
+        values.put(DatabaseHelper.COLUMN_KEY, key);
+        values.put(DatabaseHelper.COLUMN_USER_ID, userId);
+        values.put(DatabaseHelper.COLUMN_TYPE, type);
+        values.put(DatabaseHelper.COLUMN_IS_SYNCED, 0);
+
+        long result;
+        String query = "SELECT " + DatabaseHelper.COLUMN_ID + " FROM " + DatabaseHelper.TABLE_BIOMETRICS +
+                " WHERE " + DatabaseHelper.COLUMN_KEY + " = ? AND " + DatabaseHelper.COLUMN_USER_ID + " = ? AND " + DatabaseHelper.COLUMN_TYPE + " = ?";
+        Cursor cursor = db.rawQuery(query, new String[]{key, String.valueOf(userId), type});
+
+        if (cursor.moveToFirst()) {
+            long id = cursor.getLong(cursor.getColumnIndexOrThrow(DatabaseHelper.COLUMN_ID));
+            db.update(DatabaseHelper.TABLE_BIOMETRICS, values, DatabaseHelper.COLUMN_ID + " = ?", new String[]{String.valueOf(id)});
+            result = id;
+        } else {
+            result = db.insert(DatabaseHelper.TABLE_BIOMETRICS, null, values);
+        }
+
+        cursor.close();
+        db.close();
+        return result;
+    }
+
     public Biometric findFaceBiometricByKey(String key) {
         SQLiteDatabase db = dbHelper.getReadableDatabase();
         Biometric biometric = null;

@@ -207,8 +207,6 @@ public class DeviceRegistration extends AppCompatActivity {
                     //check if device is registered
                     boolean isRegistered = sharedPreferences.getBoolean("isRegistered", false);
                     if (!isRegistered) {
-                        startActivity(new Intent(DeviceRegistration.this, DeviceRegistration.class));
-                        finish();
                         return;
                     }
 

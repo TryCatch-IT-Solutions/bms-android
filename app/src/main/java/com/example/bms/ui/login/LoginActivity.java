@@ -33,6 +33,7 @@ import android.widget.Toast;
 import com.example.bms.App;
 import com.example.bms.BiometricRepository;
 import com.example.bms.Configuration;
+import com.example.bms.DatabaseHelper;
 import com.example.bms.DeviceRegistration;
 import com.example.bms.EncryptionUtil;
 import com.example.bms.EndpointRegistration;
@@ -43,6 +44,7 @@ import com.example.bms.MainActivity;
 import com.example.bms.R;
 import com.example.bms.SplashScreen;
 import com.example.bms.UserRepository;
+import com.example.bms.data.LoginDataSource;
 import com.example.bms.data.Result;
 import com.example.bms.data.model.LoggedInUser;
 import com.example.bms.ui.login.LoginViewModel;
@@ -131,7 +133,8 @@ public class LoginActivity extends AppCompatActivity {
                         user.getString("emergency_contact_no"),
                         user.getString("emergency_contact_name"),
                         user.getString("role"),
-                        user.getString("password"));
+                        user.getString("password"),
+                        user.getString("created_at"));
 
                 JSONArray biometrics = user.getJSONArray("biometrics");
                 for (int j = 0; j < biometrics.length(); j++) {
@@ -241,9 +244,10 @@ public class LoginActivity extends AppCompatActivity {
 
         Log.d("LoginActivity", App.BASE_URL);
 
-
-        ExecutorService executor = Executors.newSingleThreadExecutor();
-        executor.execute(this::syncGroups);
+        if(getAccess().equals("online")) {
+            ExecutorService executor = Executors.newSingleThreadExecutor();
+            executor.execute(this::syncGroups);
+        }
 
         final EditText usernameEditText = binding.username;
         final EditText passwordEditText = binding.password;
@@ -403,19 +407,52 @@ public class LoginActivity extends AppCompatActivity {
                     }
                 }
 
-                if(model.getGroupId() == 0 && model.getRole().equals("groupadmin")){
+                if(model.getRole().equals("groupadmin")) {
 
-                    new Handler(Looper.getMainLooper()).postDelayed(new Runnable() {
-                        @Override
-                        public void run() {
-                            new SweetAlertDialog(LoginActivity.this, SweetAlertDialog.ERROR_TYPE)
-                                    .setTitleText("Error")
-                                    .setContentText("You are not assigned to any group")
-                                    .show();
+                    Log.d("LognActivity", "Group ID     : " + model.getGroupId());
+                    if(model.getGroupId() == 0){
+
+                        new Handler(Looper.getMainLooper()).postDelayed(new Runnable() {
+                            @Override
+                            public void run() {
+                                new SweetAlertDialog(LoginActivity.this, SweetAlertDialog.ERROR_TYPE)
+                                        .setTitleText("Error")
+                                        .setContentText("You are not assigned to any group")
+                                        .show();
+                            }
+                        }, 100);
+
+                        success = false;
+                        return;
+                    }
+
+                    SharedPreferences groupPrefs = getSharedPreferences("DEVICE_GROUP", Context.MODE_PRIVATE);
+                    String groupId = groupPrefs.getString(GroupActivity.KEY_SELECTED_GROUP, null);
+                    if(groupId == null){
+                        SharedPreferences.Editor editorGroup = groupPrefs.edit();
+                        editorGroup.putString(GroupActivity.KEY_SELECTED_GROUP, String.valueOf(model.getGroupId()));
+                        editorGroup.apply();
+                    }else{
+                        if(!groupId.equals(String.valueOf(model.getGroupId()))){
+                            new Handler(Looper.getMainLooper()).postDelayed(new Runnable() {
+                                @Override
+                                public void run() {
+                                    new SweetAlertDialog(LoginActivity.this, SweetAlertDialog.ERROR_TYPE)
+                                            .setTitleText("Group Mismatch")
+                                            .setContentText("You are not allowed to login to this device.")
+                                            .show();
+                                }
+                            }, 100);
+
+                            success = false;
+                            return;
                         }
-                    }, 100);
-
-                  return;
+                    }
+                }else{
+                    SharedPreferences groupPrefs = getSharedPreferences("DEVICE_GROUP", Context.MODE_PRIVATE);
+                    SharedPreferences.Editor editorGroup = groupPrefs.edit();
+                    editorGroup.putString(GroupActivity.KEY_SELECTED_GROUP, String.valueOf(model.getGroupId()));
+                    editorGroup.apply();
                 }
 
                 if(success) {

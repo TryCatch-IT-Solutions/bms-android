@@ -64,6 +64,7 @@ import com.example.bms.ScanFaceActivity;
 import com.example.bms.SplashScreen;
 import com.example.bms.data.LoginDataSource;
 import com.example.bms.data.model.User;
+import com.example.bms.ui.login.LoginActivity;
 import com.google.android.material.switchmaterial.SwitchMaterial;
 import com.hfteco.finger.FingerSDK;
 import com.hfteco.finger.OnCaptureBytesListener;
@@ -124,6 +125,8 @@ public class TimeEntryRegister extends CameraSettingActivity implements CameraMa
     boolean isLocalGroupExist = true;
     boolean ignoreThreadWhile = false;
     private ProgressDialog mProgressDialog;
+
+    private SweetAlertDialog sweetAlertDialog;
 
     private NfcAdapter mNfcAdapter;
     private PendingIntent mPendingIntent;
@@ -577,12 +580,23 @@ public class TimeEntryRegister extends CameraSettingActivity implements CameraMa
     @Override
     protected void onStart() {
         super.onStart();
-        mNfcAdapter = NfcAdapter.getDefaultAdapter(this);
+        mNfcAdapter = NfcAdapter.getDefaultAdapter(TimeEntryRegister.this);
+
         if (mNfcAdapter == null) {
             // Device does not support NFC
+            new SweetAlertDialog(TimeEntryRegister.this, SweetAlertDialog.ERROR_TYPE)
+                    .setTitleText("NFC Not Supported")
+                    .setContentText("This device does not support NFC")
+                    .show();
+            return;
         }
         if (!mNfcAdapter.isEnabled()) {
             // NFC is not enabled
+            new SweetAlertDialog(TimeEntryRegister.this, SweetAlertDialog.ERROR_TYPE)
+                    .setTitleText("NFC Not Enabled")
+                    .setContentText("Please enable NFC in your device settings")
+                    .show();
+            return;
         }
         mPendingIntent = PendingIntent.getActivity(this, 0, new Intent(this, getClass()).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP), PendingIntent.FLAG_MUTABLE);
 
@@ -719,6 +733,27 @@ public class TimeEntryRegister extends CameraSettingActivity implements CameraMa
                                         biometric = biometricRepository.getBiometricById(fingerprint.getBiometricId());
                                         User user = dbHelper.getUserById(""+biometric.getUserId());
 
+                                        if(user.getGroupId() != Long.parseLong(getDeviceGroupId())) {
+                                            new Handler(Looper.getMainLooper()).postDelayed(new Runnable() {
+                                                @Override
+                                                public void run() {
+                                                    TextToSpeechUtil.say(getApplicationContext(), "Not Allowed! Group MisMatch");
+
+                                                    if(sweetAlertDialog != null) {
+                                                        sweetAlertDialog.dismiss();
+                                                    }
+
+                                                    sweetAlertDialog = new SweetAlertDialog(TimeEntryRegister.this, SweetAlertDialog.ERROR_TYPE)
+                                                            .setTitleText("Group MisMatch")
+                                                            .setContentText("You are not allowed to clock in/out in this group");
+
+                                                    sweetAlertDialog.show();
+                                                }
+                                            }, 100);
+
+                                            return;
+                                        }
+
                                         if(isTimeRegisterOn) {
                                             Toast.makeText(TimeEntryRegister.this, "Welcome Employee", Toast.LENGTH_SHORT).show();
                                             welcomeText.setText("Welcome, ".concat( user.getDisplayName()).concat(" 👋"));
@@ -794,6 +829,21 @@ public class TimeEntryRegister extends CameraSettingActivity implements CameraMa
         scanLayout.setVisibility(View.GONE);
     }
 
+    private String getAccess()  {
+        SharedPreferences sharedPreferences = getSharedPreferences(Configuration.PREFS_NAME, Context.MODE_PRIVATE);
+        return sharedPreferences.getString("ACCESS", "offline");
+    }
+
+    private String getDeviceGroupId(){
+
+        if(getAccess().equals("offline")) {
+            return "1";
+        }
+
+        SharedPreferences sharedPreferences = getSharedPreferences("DEVICE_GROUP", Context.MODE_PRIVATE);
+        return sharedPreferences.getString(GroupActivity.KEY_SELECTED_GROUP, null);
+    }
+
     @Override
     protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
@@ -809,6 +859,27 @@ public class TimeEntryRegister extends CameraSettingActivity implements CameraMa
         biometric = dbHelper.getRfidByKey(id);
         if (biometric!= null) {
             User user = dbHelper.getUserById(""+biometric.getUserId());
+
+            if(user.getGroupId() != Long.parseLong(getDeviceGroupId())) {
+                new Handler(Looper.getMainLooper()).postDelayed(new Runnable() {
+                    @Override
+                    public void run() {
+                        TextToSpeechUtil.say(getApplicationContext(), "Not Allowed! Group MisMatch");
+
+                        if(sweetAlertDialog != null) {
+                            sweetAlertDialog.dismiss();
+                        }
+
+                        sweetAlertDialog = new SweetAlertDialog(TimeEntryRegister.this, SweetAlertDialog.ERROR_TYPE)
+                                .setTitleText("Group MisMatch")
+                                .setContentText("You are not allowed to clock in/out in this group");
+
+                        sweetAlertDialog.show();
+                    }
+                }, 100);
+
+                return;
+            }
 
             TextToSpeechUtil.say(getApplicationContext(), "Welcome "+ user.getDisplayName());
             Toast.makeText(this, "Welcome Employee", Toast.LENGTH_SHORT).show();
@@ -891,6 +962,30 @@ public class TimeEntryRegister extends CameraSettingActivity implements CameraMa
 
                 if(biometric != null) {
                     User user = dbHelper.getUserById(""+biometric.getUserId());
+
+                    if(user.getGroupId() != Long.parseLong(getDeviceGroupId())) {
+                        new Handler(Looper.getMainLooper()).postDelayed(new Runnable() {
+                            @Override
+                            public void run() {
+                                TextToSpeechUtil.say(getApplicationContext(), "Not Allowed! Group MisMatch");
+
+                                if(sweetAlertDialog != null) {
+                                    sweetAlertDialog.dismiss();
+                                }
+
+                                sweetAlertDialog = new SweetAlertDialog(TimeEntryRegister.this, SweetAlertDialog.ERROR_TYPE)
+                                        .setTitleText("Group MisMatch")
+                                        .setContentText("You are not allowed to clock in/out in this group");
+
+                                sweetAlertDialog.show();
+
+
+                            }
+                        }, 100);
+
+                        return;
+                    }
+
                     TextToSpeechUtil.say(getApplicationContext(), "Welcome "+ user.getDisplayName());
 
                     if(isTimeRegisterOn) {

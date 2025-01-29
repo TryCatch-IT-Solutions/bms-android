@@ -139,7 +139,8 @@ public class GroupActivity extends AppCompatActivity {
 
             Group selectedGroup = adapter.getSelectedGroup();
             if (selectedGroup != null) {
-                SharedPreferences.Editor editor = sharedPreferences.edit();
+                SharedPreferences groupPrefs = getSharedPreferences("DEVICE_GROUP", Context.MODE_PRIVATE);
+                SharedPreferences.Editor editor = groupPrefs.edit();
                 editor.putString(KEY_SELECTED_GROUP, String.valueOf(selectedGroup.getId()));
                 editor.apply();
 

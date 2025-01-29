@@ -14,6 +14,7 @@ import com.example.bms.BiometricRepository;
 import com.example.bms.CapitalizeFirstLetterInputFilter;
 import com.example.bms.DatabaseHelper;
 import com.example.bms.EncryptionUtil;
+import com.example.bms.EnrollmentActivity;
 import com.example.bms.FaceScanner;
 import com.example.bms.FingerPrintScanActivity;
 import com.example.bms.Fingerprint;
@@ -40,6 +41,7 @@ import com.example.bms.SplashScreen;
 import com.example.bms.UserRepository;
 import com.example.bms.data.model.User;
 import com.example.bms.databinding.ActivityEnrollmentEditBinding;
+import com.example.bms.time_entry.TimeEntryRegister;
 import com.google.android.material.appbar.CollapsingToolbarLayout;
 import com.google.android.material.card.MaterialCardView;
 
@@ -74,6 +76,8 @@ import java.util.Arrays;
 import java.util.Calendar;
 import java.util.HashMap;
 import java.util.List;
+
+import cn.pedant.SweetAlert.SweetAlertDialog;
 
 public class EnrollmentEdit extends AppCompatActivity {
 
@@ -138,6 +142,8 @@ public class EnrollmentEdit extends AppCompatActivity {
     private final Integer GROUP_ID = 1;
 
     private User employee;
+
+    SweetAlertDialog sweetAlertDialog;
 
     private ActivityResultLauncher<Intent> faceScannerLauncher = registerForActivityResult(
             new ActivityResultContracts.StartActivityForResult(), result -> {
@@ -271,6 +277,7 @@ public class EnrollmentEdit extends AppCompatActivity {
             faceScannerLauncher.launch(new Intent(this, FaceScanner.class));
         });
 
+        emailInput.setEnabled(false);
 
         phoneInput.addTextChangedListener(new TextWatcher() {
             @Override
@@ -492,15 +499,30 @@ public class EnrollmentEdit extends AppCompatActivity {
                 emergencyContactInput.requestFocus();
                 return;
             }
-            if (dbHelper.isEmailExists(email,employee.getUserId())) {
-                Toast.makeText(this, "Email already exists", Toast.LENGTH_SHORT).show();
-                return;
-            }
+//            if (dbHelper.isEmailExists(email,employee.getUserId())) {
+//                Toast.makeText(this, "Email already exists", Toast.LENGTH_SHORT).show();
+//                return;
+//            }
 
             if (dbHelper.isPhoneExists(phone,employee.getUserId())) {
                 Toast.makeText(this, "Phone number already exists", Toast.LENGTH_SHORT).show();
                 return;
             }
+
+            if(phone.equals(emergencyContact)){
+                Toast.makeText(this, "Phone number and emergency contact number cannot be the same", Toast.LENGTH_SHORT).show();
+                return;
+            }
+
+            new Handler(Looper.getMainLooper()).postDelayed(new Runnable() {
+                @Override
+                public void run() {
+                    sweetAlertDialog =  new SweetAlertDialog(EnrollmentEdit.this, SweetAlertDialog.PROGRESS_TYPE);
+                    sweetAlertDialog.setTitleText("Saving Enrollment");
+                    sweetAlertDialog.show();
+                }
+            }, 100);
+
 
             zipCode = Integer.parseInt(zipCodeInput.getText().toString());
 
@@ -510,7 +532,7 @@ public class EnrollmentEdit extends AppCompatActivity {
             String savedGroupId = sharedPreferences.getString(GroupActivity.KEY_SELECTED_GROUP, null);
 
             Log.d("savedGroupId", "UserId: " + Long.parseLong(employee.getUserId()));
-            long user_id = userRepository.updateUser(Long.parseLong(employee.getUserId()),Integer.parseInt(savedGroupId), firstName, middleName,
+            long user_id = userRepository.updateUser(Long.parseLong(employee.getUserId()),employee.getGroupId(), firstName, middleName,
                     lastName, address1, address2, barangay, municipality, province, birthDate,
                     gender, zipCode, lon, lat, email, phone, emergencyContact, emergencyContactName, employee.getRole());
 
@@ -571,6 +593,9 @@ public class EnrollmentEdit extends AppCompatActivity {
                 @Override
                 public void onSuccess() {
                     Toast.makeText(EnrollmentEdit.this, "Enrollment saved successfully", Toast.LENGTH_SHORT).show();
+                    if(sweetAlertDialog != null){
+                        sweetAlertDialog.dismiss();
+                    }
                     finish();
                 }
 
@@ -579,6 +604,9 @@ public class EnrollmentEdit extends AppCompatActivity {
                     // Handle failure
                     Toast.makeText(EnrollmentEdit.this, "Sync failed: " + errorMessage, Toast.LENGTH_SHORT).show();
                     Log.d("Errorrrrr", errorMessage);
+                    if(sweetAlertDialog != null){
+                        sweetAlertDialog.dismiss();
+                    }
                     finish();
                 }
             });
@@ -662,9 +690,19 @@ public class EnrollmentEdit extends AppCompatActivity {
         mNfcAdapter = NfcAdapter.getDefaultAdapter(this);
         if (mNfcAdapter == null) {
             // Device does not support NFC
+            new SweetAlertDialog(EnrollmentEdit.this, SweetAlertDialog.ERROR_TYPE)
+                    .setTitleText("NFC Not Supported")
+                    .setContentText("This device does not support NFC")
+                    .show();
+            return;
         }
         if (!mNfcAdapter.isEnabled()) {
             // NFC is not enabled
+            new SweetAlertDialog(EnrollmentEdit.this, SweetAlertDialog.ERROR_TYPE)
+                    .setTitleText("NFC Not Enabled")
+                    .setContentText("Please enable NFC in settings")
+                    .show();
+            return;
         }
         mPendingIntent = PendingIntent.getActivity(this, 0, new Intent(this, getClass()).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP), PendingIntent.FLAG_MUTABLE);
     }
@@ -672,7 +710,9 @@ public class EnrollmentEdit extends AppCompatActivity {
     @Override
     protected void onResume() {
         super.onResume();
-        mNfcAdapter.enableForegroundDispatch(this, mPendingIntent, null, null);
+        if (mNfcAdapter != null) {
+            mNfcAdapter.enableForegroundDispatch(this, mPendingIntent, null, null);
+        }
     }
 
     @Override

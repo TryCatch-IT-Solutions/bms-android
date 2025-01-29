@@ -46,6 +46,7 @@ public class EnrollmentShow extends AppCompatActivity {
                 TextView phoneTextView = findViewById(R.id.phone);
                 TextView addressTextView = findViewById(R.id.address);
                 TextView birthDateTextView = findViewById(R.id.birth_date);
+                TextView groupIdTextView = findViewById(R.id.group_id);
 
                 nameTextView.setText(employee.getDisplayName());
                 nameHeaderTextView.setText(employee.getDisplayName());
@@ -54,6 +55,7 @@ public class EnrollmentShow extends AppCompatActivity {
                 phoneTextView.setText(employee.getPhone());
                 addressTextView.setText(employee.getAddress1() + ", " + employee.getAddress2() + ", " + employee.getBarangay() + ", " + employee.getMunicipality() + ", " + employee.getProvince());
                 birthDateTextView.setText(employee.getBirthDate());
+                groupIdTextView.setText(""+employee.getGroupId());
             } else {
                 Log.e("EnrollmentShow", "Employee not found with ID: " + employeeId);
             }

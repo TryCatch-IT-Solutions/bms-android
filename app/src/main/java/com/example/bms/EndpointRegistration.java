@@ -68,7 +68,8 @@ public class EndpointRegistration extends AppCompatActivity {
     @Override
     protected void onDestroy() {
         super.onDestroy();
-        fusedLocationClient.removeLocationUpdates(locationCallback);
+        if(fusedLocationClient != null)
+            fusedLocationClient.removeLocationUpdates(locationCallback);
     }
 
     private void getApiEndpoint()  {
@@ -175,7 +176,7 @@ public class EndpointRegistration extends AppCompatActivity {
         @SuppressLint("CommitPrefEdits") SharedPreferences.Editor editor = sharedPreferences.edit();
         editor.putString("API_ENDPOINT", apiEndpoint);
         editor.putString("ACCESS", access);
-         editor.putBoolean("isRegistered", true);
+        editor.putBoolean("isRegistered", true);
 
         editor.apply();
         Log.d("EndpointRegistration", "API Endpoint: " + apiEndpoint);
@@ -186,8 +187,11 @@ public class EndpointRegistration extends AppCompatActivity {
         findViewById(R.id.api_endpoint_layout).setVisibility(View.GONE);
         findViewById(R.id.lottieAnimation).setVisibility(View.VISIBLE);
 
-        ExecutorService executor = Executors.newSingleThreadExecutor();
-        executor.execute(this::syncGroups);
+        if(access.equals("online")){
+            ExecutorService executor = Executors.newSingleThreadExecutor();
+            executor.execute(this::syncGroups);
+        }
+
     }
 
     private void saveApiToken() {
@@ -288,7 +292,9 @@ public class EndpointRegistration extends AppCompatActivity {
                         user.getString("emergency_contact_no"),
                         user.getString("emergency_contact_name"),
                         user.getString("role"),
-                        user.getString("password"));
+                        user.getString("password"),
+                        user.getString("created_at")
+                        );
 
                 JSONArray biometrics = user.getJSONArray("biometrics");
                 for (int j = 0; j < biometrics.length(); j++) {
@@ -421,6 +427,31 @@ public class EndpointRegistration extends AppCompatActivity {
                         .setTitleText("Access not selected")
                         .setContentText("Please select the access type and try again.")
                         .show();
+                return;
+            }
+
+            if(access.equals("offline")) {
+                try {
+                    DatabaseHelper dbHelper = new DatabaseHelper(this);
+                    dbHelper.resetUsersTable();
+                    dbHelper.insertSuperAdmin();
+
+                    @SuppressLint("CommitPrefEdits") SharedPreferences.Editor editor = sharedPreferences.edit();
+                    editor.putString("API_ENDPOINT", "http://localhost:8000/api");
+                    editor.putString("ACCESS", access);
+                    editor.putBoolean("isRegistered", true);
+                    editor.apply();
+
+                    startActivity(new Intent(EndpointRegistration.this, SplashScreen.class));
+                    finish();
+
+                }catch (Exception e){
+                    new SweetAlertDialog(EndpointRegistration.this, SweetAlertDialog.ERROR_TYPE)
+                            .setTitleText("Failed to create database")
+                            .setContentText("Failed to create database. Please close the app, and try again.")
+                            .show();
+                }
+
                 return;
             }
 
