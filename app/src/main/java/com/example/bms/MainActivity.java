@@ -427,11 +427,12 @@ public class MainActivity extends AppCompatActivity {
                             @Override
                             public void onFailure(String errorMessage) {
                                 dialog.dismiss();
-                                LoginDataSource loginDataSource = new LoginDataSource(MainActivity.this);
-                                loginDataSource.logout(MainActivity.this);
-                                Intent intent = new Intent(MainActivity.this, SplashScreen.class);
-                                startActivity(intent);
-                                finish();
+                                new SweetAlertDialog(MainActivity.this, SweetAlertDialog.ERROR_TYPE)
+                                        .setTitleText("Error")
+                                        .setContentText("Logout failed: " + errorMessage)
+                                        .show();
+
+                                ((App) getApplication()).refreshToken();
                             }
                         });
                     }
@@ -439,16 +440,11 @@ public class MainActivity extends AppCompatActivity {
                     @Override
                     public void onFailure(String errorMessage) {
                         dialog.dismiss();
-//                        new SweetAlertDialog(MainActivity.this, SweetAlertDialog.ERROR_TYPE)
-//                                .setTitleText("Error")
-//                                .setContentText("Logout failed: " + errorMessage)
-//                                .show();
-                        Toast.makeText(MainActivity.this, "Logout failed: " + errorMessage, Toast.LENGTH_SHORT).show();
-                        LoginDataSource loginDataSource = new LoginDataSource(MainActivity.this);
-                        loginDataSource.logout(MainActivity.this);
-                        Intent intent = new Intent(MainActivity.this, SplashScreen.class);
-                        startActivity(intent);
-                        finish();
+                        new SweetAlertDialog(MainActivity.this, SweetAlertDialog.ERROR_TYPE)
+                                .setTitleText("Error")
+                                .setContentText("Logout failed: " + errorMessage)
+                                .show();
+                        ((App) getApplication()).refreshToken();
                     }
                 });
             }

@@ -164,7 +164,7 @@ public class EndpointRegistration extends AppCompatActivity {
         }
 
         //check if endpoint is valid
-        if(!apiEndpoint.startsWith("http://")){
+        if(!apiEndpoint.startsWith("http://") && !apiEndpoint.startsWith("https://")){
             new SweetAlertDialog(EndpointRegistration.this, SweetAlertDialog.ERROR_TYPE)
                     .setTitleText("Invalid API Endpoint")
                     .setContentText("Please enter a valid URL and try again.")

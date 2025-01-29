@@ -257,6 +257,7 @@ public class App extends Application {
         return sharedPreferences.getString(GroupActivity.KEY_SELECTED_GROUP, null);
     }
 
+
     public String getToken(Context context) {
         try {
             SharedPreferences sharedPreferences = context.getSharedPreferences("user_prefs", Context.MODE_PRIVATE);
@@ -582,6 +583,8 @@ public class App extends Application {
 
         String token = getToken(context);
 
+        System.out.println("Token is: " + token);
+
         SQLiteDatabase db = dbHelper.getReadableDatabase();
         Cursor cursor = db.rawQuery("SELECT * FROM " + DatabaseHelper.TABLE_USERS + " WHERE is_synced = 0", null);
 
@@ -741,12 +744,120 @@ public class App extends Application {
                     }
                 } else {
                     if (callback != null) {
+                        System.out.println("Error is: " + finalErrorMessage);
+
+                        //check if contains unauthorized
+                        if(finalErrorMessage.contains("Unauthorized")){
+                            refreshToken();
+                        }
+
                         callback.onFailure(finalErrorMessage);
                     }
                 }
             });
         });
     }
+
+    private String getCurrentEmail() {
+        try {
+            SharedPreferences sharedPreferences = getSharedPreferences("user_prefs", Context.MODE_PRIVATE);
+            String encryptedData = sharedPreferences.getString("user_data", null);
+            if (encryptedData != null) {
+                byte[] decodedData = Base64.decode(encryptedData, Base64.DEFAULT);
+                String decryptedData = EncryptionUtil.decrypt(decodedData);
+                String[] userData = decryptedData.split(",");
+                return userData[1];
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return null;
+    }
+
+    public void refreshToken() {
+        ExecutorService executor = Executors.newSingleThreadExecutor();
+        Handler handler = new Handler(Looper.getMainLooper());
+
+        String currentUserEmail = getCurrentEmail();
+
+        System.out.println("Current Email is: " + currentUserEmail);
+
+        executor.execute(() -> {
+            try {
+                URL url = new URL(BASE_URL+"/refresh-token?email="+currentUserEmail);
+                HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+                conn.setRequestMethod("POST");
+                conn.setRequestProperty("Accept", "application/json");
+                conn.setRequestProperty("Authorization", "Bearer " + TOKEN);
+                conn.setDoOutput(true);
+
+                int responseCode = conn.getResponseCode();
+                if (responseCode == HttpURLConnection.HTTP_OK) {
+                    BufferedReader br = new BufferedReader(new InputStreamReader(conn.getInputStream()));
+                    StringBuilder response = new StringBuilder();
+                    String line;
+                    while ((line = br.readLine()) != null) {
+                        response.append(line);
+                    }
+                    br.close();
+
+                    JSONObject jsonResponse = new JSONObject(response.toString());
+                    String newToken = jsonResponse.getString("token");
+                    JSONObject userJson = jsonResponse.getJSONObject("user");
+
+                    String displayName =  userJson.getString("first_name") + " " + userJson.getString("last_name");
+
+                    // Save the new token to user_prefs
+                    // Encrypt the user data
+                    System.out.println("The new Encrypt is" + displayName + "," + userJson.getString("email") + "," + "No_Password" + "," + userJson.getLong("group_id")  + "," + userJson.getString("role") + "," + newToken);
+                    byte[] encryptedData = EncryptionUtil.encrypt(displayName + "," + userJson.getString("email") + "," + "No_Password" + "," + userJson.getLong("group_id")  + "," + userJson.getString("role") + "," + newToken);
+
+                    SharedPreferences sharedPreferences = getSharedPreferences("user_prefs", Context.MODE_PRIVATE);
+                    SharedPreferences.Editor editor = sharedPreferences.edit();
+                    editor.putString("user_data", Base64.encodeToString(encryptedData, Base64.DEFAULT));
+                    editor.apply();
+
+                    handler.post(() -> {
+                        Log.d("RefreshToken", "Token refreshed successfully");
+                        syncUsersOnLogout(App.this, new SyncCallback() {
+                            @Override
+                            public void onSuccess() {
+                                Log.d("RefreshToken", "Users synced successfully");
+                            }
+
+                            @Override
+                            public void onFailure(String errorMessage) {
+                                Log.e("RefreshToken", "Error syncing users: " + errorMessage);
+                            }
+                        });
+
+                        syncTimeEntriesOnLogout(App.this, new SyncCallback() {
+                            @Override
+                            public void onSuccess() {
+                                Log.d("RefreshToken", "Time entries synced successfully");
+                            }
+
+                            @Override
+                            public void onFailure(String errorMessage) {
+                                Log.e("RefreshToken", "Error syncing time entries: " + errorMessage);
+                            }
+                        });
+                    });
+
+                } else {
+                    handler.post(() -> {
+                        Log.e("RefreshToken", "Failed to refresh token, response code: " + responseCode);
+                    });
+                }
+                conn.disconnect();
+            } catch (Exception e) {
+                handler.post(() -> {
+                    Log.e("RefreshToken", "Error refreshing token: " + e.getMessage());
+                });
+            }
+        });
+    }
+
 
     @SuppressLint("Range")
     public void syncUsers(Context context, SyncCallback callback, boolean silent) {

@@ -84,6 +84,22 @@ public class EmployeeAdapter extends RecyclerView.Adapter<EmployeeAdapter.Employ
         return null;
     }
 
+    public String getCurrentEmail() {
+        try {
+            SharedPreferences sharedPreferences = context.getSharedPreferences("user_prefs", Context.MODE_PRIVATE);
+            String encryptedData = sharedPreferences.getString("user_data", null);
+            if (encryptedData != null) {
+                byte[] decodedData = Base64.decode(encryptedData, Base64.DEFAULT);
+                String decryptedData = EncryptionUtil.decrypt(decodedData);
+                String[] userData = decryptedData.split(",");
+                return userData[1];
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return null;
+    }
+
     private String getGroupId(Context context) {
         try {
             SharedPreferences sharedPreferences = context.getSharedPreferences("user_prefs", Context.MODE_PRIVATE);
@@ -114,6 +130,8 @@ public class EmployeeAdapter extends RecyclerView.Adapter<EmployeeAdapter.Employ
         updateData(employeeList);
     }
 
+
+
     @Override
     public void onBindViewHolder(@NonNull EmployeeViewHolder holder, int position) {
         User employee = employeeList.get(position);
@@ -127,6 +145,10 @@ public class EmployeeAdapter extends RecyclerView.Adapter<EmployeeAdapter.Employ
             holder.buttonDelete.setVisibility(View.GONE);
             holder.buttonEdit.setVisibility(View.GONE);
             holder.unassignButton.setVisibility(View.VISIBLE);
+        }
+
+        if(Objects.equals(getCurrentEmail(), employee.getEmail())) {
+            holder.buttonEdit.setVisibility(View.VISIBLE);
         }
 
         if(Objects.equals(employee.getRole(), "groupadmin") || Objects.equals(employee.getRole(), "superadmin")) {
