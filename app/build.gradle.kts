@@ -9,7 +9,7 @@ android {
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "com.example.bms"
+        applicationId = "com.dai.bms"
         minSdk = 30
         targetSdk = 33
         versionCode = 1

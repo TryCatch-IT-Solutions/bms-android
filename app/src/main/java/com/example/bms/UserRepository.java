@@ -1,5 +1,4 @@
 package com.example.bms;
-import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 
 import android.annotation.SuppressLint;
 import android.content.ContentValues;
@@ -9,6 +8,7 @@ import android.database.sqlite.SQLiteDatabase;
 
 import com.example.bms.data.LoginDataSource;
 import com.example.bms.data.model.LoggedInUser;
+import com.example.bms.data.model.User;
 
 public class UserRepository {
 
@@ -29,6 +29,10 @@ public class UserRepository {
 
     public LoggedInUser getUserByEmail(String email) {
         return dbHelper.getUserByEmail(email);
+    }
+
+    public long findUserIdByEmail(String email) {
+        return dbHelper.findUserIdByEmail(email);
     }
 
     public void resetUsersTable() {

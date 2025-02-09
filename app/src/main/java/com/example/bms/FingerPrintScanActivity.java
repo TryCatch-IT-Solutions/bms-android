@@ -2,29 +2,22 @@ package com.example.bms;
 
 import android.Manifest;
 import android.app.AlertDialog;
+import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
 import android.net.Uri;
-import android.os.Build;
 import android.os.Bundle;
 
-import com.example.bms.data.model.User;
-import com.example.bms.time_entry.TimeEntryRegister;
-import com.google.android.material.appbar.CollapsingToolbarLayout;
-import com.google.android.material.floatingactionbutton.FloatingActionButton;
-import com.google.android.material.snackbar.Snackbar;
-
 import androidx.appcompat.app.AppCompatActivity;
-import androidx.appcompat.widget.AppCompatImageView;
 import androidx.appcompat.widget.Toolbar;
+import androidx.core.view.WindowInsetsCompat;
 
 import android.os.Environment;
-import android.os.Handler;
-import android.os.Looper;
-import android.os.StrictMode;
 import android.provider.Settings;
+import android.util.Base64;
 import android.util.Log;
 import android.view.View;
 import android.widget.Button;
@@ -34,18 +27,17 @@ import android.widget.Toast;
 import com.example.bms.databinding.ActivityFingerPrintScanBinding;
 import com.hfteco.finger.FingerSDK;
 import com.hfteco.finger.OnCaptureBytesListener;
-import com.hfteco.finger.OnCaptureListener;
 import com.hfteco.finger.OnSdkInitListener;
 
-import java.io.UnsupportedEncodingException;
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Objects;
 
 import cn.pedant.SweetAlert.SweetAlertDialog;
 import doorx.utils.OnDeviceCheckClickListener;
 import doorx.utils.ProgressDialogUtils;
-import facex.utils.TextToSpeechUtil;
 
 public class FingerPrintScanActivity extends AppCompatActivity {
 
@@ -77,6 +69,8 @@ public class FingerPrintScanActivity extends AppCompatActivity {
         FingerprintRepository fingerprintRepository = new FingerprintRepository(this);
         fingerprints = fingerprintRepository.getAllFingerprints();
 
+        Objects.requireNonNull(getWindow().getInsetsController()).hide(WindowInsetsCompat.Type.systemBars());
+
 //        Toolbar toolbar = binding.toolbar;
 //        setSupportActionBar(toolbar);
 //        CollapsingToolbarLayout toolBarLayout = binding.toolbarLayout;
@@ -89,7 +83,6 @@ public class FingerPrintScanActivity extends AppCompatActivity {
                 finish();
             }
         });
-
 
         fingerImageViews[0] = findViewById(R.id.fingerIv_1);
         fingerImageViews[1] = findViewById(R.id.fingerIv_2);
@@ -121,20 +114,15 @@ public class FingerPrintScanActivity extends AppCompatActivity {
                     @Override
                     public void run() {
                         Log.d("FingerPrintScanActivity", "initResult: " + i + " " + s);
-                        if (i != FingerSDK.RESULT_OK) {
-                            AlertDialog retryDialog =
-                                    new AlertDialog.Builder(FingerPrintScanActivity.this)
-                                            .setCancelable(false)
-                                            .setTitle("INIT FAILED").setMessage("Failed to initialize fingerprint scanner")
-                                            .setPositiveButton("Try Again",
-                                                    new DialogInterface.OnClickListener() {
-                                                        @Override
-                                                        public void onClick(DialogInterface dialog, int which) {
-                                                            dialog.dismiss();
-                                                            fingerSDK.launch();
-                                                        }
-                                                    }).create();
-                            retryDialog.show();
+                        if (fingerSDK == null) {
+                            Log.d("FingerPrintScanActivity", "run: fingerSDK is null");
+                            return;
+                        }
+                        if (i != 1) {
+                            Log.d("FingerPrintScanActivity", "run: fingerSDK is null");
+                            fingerSDK.launch();
+                        }else{
+                            Log.d("FingerPrintScanActivity", "run: fingerSDK is not null");
                         }
                     }
                 });
@@ -347,11 +335,28 @@ public class FingerPrintScanActivity extends AppCompatActivity {
         }
     }
 
+    private int fingerprintScoreThreshold() {
+        SharedPreferences sharedPreferences = getSharedPreferences("device_settings", Context.MODE_PRIVATE);
+        String fingerprintScoreThreshold = sharedPreferences.getString("FINGERPRINT_SCORE_THRESHOLD", "80");
+        return Integer.parseInt(fingerprintScoreThreshold);
+    }
+
     private boolean validateFingerPrint(String tempString){
+        // Convert bytes to Base64 string
+//        Log.d("Fingerprint", "Base64 String: " + base64String);
+//
+        // Convert Base64 string back to bytes
+//        byte[] decodedBytes = Base64.decode(base64String, Base64.DEFAULT);
+//        Log.d("Fingerprint", "Decoded Bytes Length: " + decodedBytes.length);
+
         for(Fingerprint fingerprint: fingerprints) {
-            int score = fingerSDK.compareTemplateBytes(FingerSDK.TEMPLEATES.valueOf("ISO_19794_2_2011"),tempString.getBytes(StandardCharsets.ISO_8859_1),fingerprint.getKey().getBytes(StandardCharsets.ISO_8859_1));
+
+//            Log.d("Fingerprint", "Stored Fingerprint: " + fingerprint.getKey());
+            byte[] storedFingerprint = Base64.decode(fingerprint.getKey(), Base64.DEFAULT);
+//            Log.d("Fingerprint", "Stored Fingerprint Length: " + Arrays.toString(storedFingerprint));
+            int score = fingerSDK.compareTemplateBytes(FingerSDK.TEMPLEATES.valueOf("ISO_19794_2_2011"),tempString.getBytes(StandardCharsets.ISO_8859_1),storedFingerprint);
             Log.d("TimeEntryRegister", "Score: " + score);
-            if (score > 85) {
+            if (score > fingerprintScoreThreshold()) {
                 return false;
             }
         }
@@ -390,12 +395,11 @@ public class FingerPrintScanActivity extends AppCompatActivity {
                         return;
                     }
 
+                    String base64String = Base64.encodeToString(tempString.getBytes(StandardCharsets.ISO_8859_1), Base64.DEFAULT);
+
                     updateFingerBitmap(bitmap);
-                    Log.d("FingerPrintScanActivity", "capture success: " + bytes.length);
-
-                    Log.d("FingerPrintScanActivity", "currentFingerIndex: " + currentFingerIndex);
-                    fingerDataMap.put(currentFingerIndex, tempString);
-
+                    Log.d("FingerPrintScanActivity", "Base64 String: " + base64String);
+                    fingerDataMap.put(currentFingerIndex, base64String);
                 } else {
                     Log.d("FingerPrintScanActivity", "capture failed: " + i);
                     if (bitmap != null) {

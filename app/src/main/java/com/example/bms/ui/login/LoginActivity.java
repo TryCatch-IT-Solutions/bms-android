@@ -1,17 +1,18 @@
 package com.example.bms.ui.login;
 
-import android.Manifest;
-import android.annotation.SuppressLint;
 import android.app.Activity;
 
 import androidx.core.app.ActivityCompat;
 import androidx.lifecycle.Observer;
 import androidx.lifecycle.ViewModelProvider;
 
+import android.app.admin.DevicePolicyManager;
+import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
+import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 
@@ -19,8 +20,10 @@ import androidx.annotation.Nullable;
 import androidx.annotation.StringRes;
 import androidx.appcompat.app.AppCompatActivity;
 
+import android.os.Environment;
 import android.os.Handler;
 import android.os.Looper;
+import android.provider.Settings;
 import android.text.Editable;
 import android.text.TextWatcher;
 import android.util.Base64;
@@ -28,7 +31,6 @@ import android.util.Log;
 import android.view.KeyEvent;
 import android.view.View;
 import android.view.inputmethod.EditorInfo;
-import android.widget.Button;
 import android.widget.EditText;
 import android.widget.ProgressBar;
 import android.widget.TextView;
@@ -37,26 +39,19 @@ import android.widget.Toast;
 import com.example.bms.App;
 import com.example.bms.BiometricRepository;
 import com.example.bms.Configuration;
-import com.example.bms.DatabaseHelper;
-import com.example.bms.DeviceRegistration;
 import com.example.bms.DeviceRepository;
 import com.example.bms.EncryptionUtil;
-import com.example.bms.EndpointRegistration;
 import com.example.bms.FingerprintRepository;
 import com.example.bms.GroupActivity;
 import com.example.bms.GroupRepository;
-import com.example.bms.MainActivity;
+import com.example.bms.MyAdminReceiver;
 import com.example.bms.R;
 import com.example.bms.SplashScreen;
 import com.example.bms.UserRepository;
-import com.example.bms.data.LoginDataSource;
 import com.example.bms.data.Result;
 import com.example.bms.data.model.LoggedInUser;
-import com.example.bms.ui.login.LoginViewModel;
-import com.example.bms.ui.login.LoginViewModelFactory;
 import com.example.bms.databinding.ActivityLoginBinding;
 import com.google.android.material.button.MaterialButton;
-import com.google.android.material.textfield.TextInputEditText;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -68,9 +63,7 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
-import java.util.Objects;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -154,11 +147,9 @@ public class LoginActivity extends AppCompatActivity {
                     for (int k = 0; k < fingerprints.length(); k++) {
                         JSONObject fingerprint = fingerprints.getJSONObject(k);
 
-                        byte[] decodedBytes = Base64.decode(fingerprint.getString("key"), Base64.DEFAULT);
-                        String decodedKey = new String(decodedBytes, StandardCharsets.UTF_8);
                         fingerprintRepository.insertFingerprint(
                                 biometricId,
-                                decodedKey
+                                fingerprint.getString("key")
                         );
                     }
                 }
@@ -259,6 +250,43 @@ public class LoginActivity extends AppCompatActivity {
         if (!permissionsToRequest.isEmpty()) {
             ActivityCompat.requestPermissions(this, permissionsToRequest.toArray(new String[0]), 1);
         }
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            if (!Environment.isExternalStorageManager()) {
+                requestManageExternalStoragePermission();
+            }
+        }
+
+        DevicePolicyManager devicePolicyManager = (DevicePolicyManager) getSystemService(Context.DEVICE_POLICY_SERVICE);
+        ComponentName adminComponent = new ComponentName(this, MyAdminReceiver.class);
+
+        if (!devicePolicyManager.isAdminActive(adminComponent)) {
+            Intent intent = new Intent(DevicePolicyManager.ACTION_ADD_DEVICE_ADMIN);
+            intent.putExtra(DevicePolicyManager.EXTRA_DEVICE_ADMIN, adminComponent);
+            intent.putExtra(DevicePolicyManager.EXTRA_ADD_EXPLANATION, "Device admin permission is required to lock the screen.");
+            startActivityForResult(intent, 1);
+        }
+    }
+
+    private static final int REQUEST_MANAGE_EXTERNAL_STORAGE = 1;
+    private void requestManageExternalStoragePermission() {
+        Intent intent = new Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION);
+        intent.setData(Uri.parse("package:" + getPackageName()));
+        startActivityForResult(intent, REQUEST_MANAGE_EXTERNAL_STORAGE);
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode == REQUEST_MANAGE_EXTERNAL_STORAGE) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                if (Environment.isExternalStorageManager()) {
+                    Toast.makeText(this, "Permission granted", Toast.LENGTH_SHORT).show();
+                } else {
+                    Toast.makeText(this, "Permission denied", Toast.LENGTH_SHORT).show();
+                }
+            }
+        }
     }
 
     @Override
@@ -333,7 +361,6 @@ public class LoginActivity extends AppCompatActivity {
                     }
                 }
                 setResult(Activity.RESULT_OK);
-
             }
         });
 

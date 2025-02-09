@@ -5,6 +5,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
@@ -20,13 +21,8 @@ import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.cardview.widget.CardView;
 import androidx.core.app.ActivityCompat;
-import androidx.core.graphics.Insets;
-import androidx.core.view.ViewCompat;
-import androidx.core.view.WindowInsetsCompat;
 
-import com.example.bms.databinding.ActivityDeviceRegistrationBinding;
 import com.example.bms.databinding.ActivityEndpointRegistrationBinding;
-import com.example.bms.ui.login.LoginActivity;
 import com.google.android.gms.common.ConnectionResult;
 import com.google.android.gms.common.GoogleApiAvailability;
 import com.google.android.gms.location.FusedLocationProviderClient;
@@ -39,6 +35,7 @@ import com.google.android.gms.location.Priority;
 import com.google.android.material.textfield.TextInputEditText;
 
 import org.json.JSONArray;
+import org.json.JSONException;
 import org.json.JSONObject;
 
 import java.io.BufferedReader;
@@ -68,11 +65,11 @@ public class EndpointRegistration extends AppCompatActivity {
     @Override
     protected void onDestroy() {
         super.onDestroy();
-        if(fusedLocationClient != null)
+        if (fusedLocationClient != null)
             fusedLocationClient.removeLocationUpdates(locationCallback);
     }
 
-    private void getApiEndpoint()  {
+    private void getApiEndpoint() {
         SharedPreferences sharedPreferences = getSharedPreferences(Configuration.PREFS_NAME, Context.MODE_PRIVATE);
         String apiEndpoint = sharedPreferences.getString("API_ENDPOINT", "http://192.168.1.58:8000/api");
         TextInputEditText editTextApiEndpoint = findViewById(R.id.api_endpoint);
@@ -80,7 +77,7 @@ public class EndpointRegistration extends AppCompatActivity {
         Log.d("Configuration", "API Endpoint: " + apiEndpoint);
     }
 
-    private void getApiToken()  {
+    private void getApiToken() {
         SharedPreferences sharedPreferences = getSharedPreferences(Configuration.PREFS_NAME, Context.MODE_PRIVATE);
         String token = sharedPreferences.getString("API_TOKEN", "client-123456");
         TextInputEditText editTextApiEndpoint = findViewById(R.id.api_token);
@@ -88,7 +85,7 @@ public class EndpointRegistration extends AppCompatActivity {
         Log.d("Configuration", "API Token: " + token);
     }
 
-    private String getAccess()  {
+    private String getAccess() {
         SharedPreferences sharedPreferences = getSharedPreferences(Configuration.PREFS_NAME, Context.MODE_PRIVATE);
         return sharedPreferences.getString("ACCESS", "offline");
     }
@@ -103,10 +100,12 @@ public class EndpointRegistration extends AppCompatActivity {
             conn.setRequestProperty("Authorization", "Bearer " + App.TOKEN);
 
             if (conn.getResponseCode() != 200) {
-                new SweetAlertDialog(EndpointRegistration.this, SweetAlertDialog.ERROR_TYPE)
-                        .setTitleText("Failed to sync groups")
-                        .setContentText("Failed to sync groups from the server. Please close the app, and try again.")
-                        .show();
+                runOnUiThread(() -> {
+                    new SweetAlertDialog(EndpointRegistration.this, SweetAlertDialog.ERROR_TYPE)
+                            .setTitleText("Failed to sync groups")
+                            .setContentText("Failed to sync groups from the server. Please close the app, and try again.")
+                            .show();
+                });
                 throw new RuntimeException("Failed : HTTP error code : " + conn.getResponseCode());
             }
 
@@ -155,7 +154,7 @@ public class EndpointRegistration extends AppCompatActivity {
         TextInputEditText editTextApiEndpoint = findViewById(R.id.api_endpoint);
         String apiEndpoint = Objects.requireNonNull(editTextApiEndpoint.getText()).toString();
 
-        if(apiEndpoint.isEmpty()){
+        if (apiEndpoint.isEmpty()) {
             new SweetAlertDialog(EndpointRegistration.this, SweetAlertDialog.ERROR_TYPE)
                     .setTitleText("API Endpoint not entered")
                     .setContentText("Please enter the API endpoint and try again.")
@@ -164,7 +163,7 @@ public class EndpointRegistration extends AppCompatActivity {
         }
 
         //check if endpoint is valid
-        if(!apiEndpoint.startsWith("http://") && !apiEndpoint.startsWith("https://")){
+        if (!apiEndpoint.startsWith("http://") && !apiEndpoint.startsWith("https://")) {
             new SweetAlertDialog(EndpointRegistration.this, SweetAlertDialog.ERROR_TYPE)
                     .setTitleText("Invalid API Endpoint")
                     .setContentText("Please enter a valid URL and try again.")
@@ -187,21 +186,20 @@ public class EndpointRegistration extends AppCompatActivity {
         findViewById(R.id.api_endpoint_layout).setVisibility(View.GONE);
         findViewById(R.id.lottieAnimation).setVisibility(View.VISIBLE);
 
-        if(access.equals("online")){
+        if (access.equals("online")) {
             ExecutorService executor = Executors.newSingleThreadExecutor();
-            executor.execute(() -> ((App)getApplication()).getSimilarDevices());
+            executor.execute(() -> ((App) getApplication()).getSimilarDevices());
             executor.execute(this::syncGroups);
         }
 
     }
 
 
-
     private void saveApiToken() {
         TextInputEditText editTextApiEndpoint = findViewById(R.id.api_token);
         String apiEndpoint = Objects.requireNonNull(editTextApiEndpoint.getText()).toString();
 
-        if(apiEndpoint.isEmpty()){
+        if (apiEndpoint.isEmpty()) {
             new SweetAlertDialog(EndpointRegistration.this, SweetAlertDialog.ERROR_TYPE)
                     .setTitleText("API TOKEN not entered")
                     .setContentText("Please enter the API token and try again.")
@@ -236,10 +234,11 @@ public class EndpointRegistration extends AppCompatActivity {
         }
     }
 
+    SweetAlertDialog sweetAlertDialog;
 
-    private void syncUsers(){
+    private void syncUsers() {
         try {
-            Log.d("LoginAct234",App.BASE_URL + "/sync/users/login");
+            Log.d("LoginAct234", App.BASE_URL + "/sync/users/login");
 
             URL url = new URL(App.BASE_URL + "/sync/users/login");
             HttpURLConnection conn = (HttpURLConnection) url.openConnection();
@@ -297,7 +296,7 @@ public class EndpointRegistration extends AppCompatActivity {
                         user.getString("role"),
                         user.getString("password"),
                         user.getString("created_at")
-                        );
+                );
 
                 JSONArray biometrics = user.getJSONArray("biometrics");
                 for (int j = 0; j < biometrics.length(); j++) {
@@ -311,11 +310,11 @@ public class EndpointRegistration extends AppCompatActivity {
                     for (int k = 0; k < fingerprints.length(); k++) {
                         JSONObject fingerprint = fingerprints.getJSONObject(k);
 
-                        byte[] decodedBytes = Base64.decode(fingerprint.getString("key"), Base64.DEFAULT);
-                        String decodedKey = new String(decodedBytes, StandardCharsets.UTF_8);
+                        Log.d("Fingerprint", "Fingerprint: " + fingerprint.getString("key"));
+
                         fingerprintRepository.insertFingerprint(
                                 biometricId,
-                                decodedKey
+                                fingerprint.getString("key")
                         );
                     }
                 }
@@ -326,6 +325,15 @@ public class EndpointRegistration extends AppCompatActivity {
         } catch (Exception e) {
             e.printStackTrace();
             Log.e("LoginActivity", "Error during user sync: " + e.getMessage(), e);
+        }
+    }
+
+    private boolean isValidBase64(String base64) {
+        try {
+            Base64.decode(base64, Base64.DEFAULT);
+            return true;
+        } catch (IllegalArgumentException e) {
+            return false;
         }
     }
 
@@ -344,7 +352,7 @@ public class EndpointRegistration extends AppCompatActivity {
                 });
     }
 
-    private void initLocation(){
+    private void initLocation() {
         // Define the location callback
         locationCallback = new LocationCallback() {
             @Override
@@ -408,13 +416,46 @@ public class EndpointRegistration extends AppCompatActivity {
     private CardView offlineCard, onlineCard;
     private String access;
 
+    private void initOfflineVariables() {
+        SharedPreferences sharedPreferences = getSharedPreferences("device_settings", Context.MODE_PRIVATE);
+
+        SharedPreferences.Editor editor = sharedPreferences.edit();
+        editor.putString("APP_TOKEN", null);
+        editor.putString("FINGERPRINT_SCORE_THRESHOLD", "85");
+        editor.putString("PRIMARY_LOGO", null);
+        editor.putString("PRIMARY_LOGO_URL", null);
+        editor.putString("SECONDARY_LOGO", null);
+        editor.putString("SECONDARY_LOGO_URL", null);
+        editor.putString("SNAPSHOT_RETENTION", "43200");
+        editor.putString("STRANGER_DETECTION", "on");
+        editor.putString("SCREEN_TIMEOUT", "60000");
+        editor.putString("DEVICE_SYNC_INTERVAL", "60000");
+        editor.apply();
+    }
+
+    private String getSerial() {
+        String serialNo;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            try {
+                serialNo = Build.getSerial();
+            } catch (SecurityException e) {
+                serialNo = Build.SERIAL;
+//                        serialNo = "Permission not granted";
+            }
+        } else {
+            serialNo = Build.SERIAL;
+        }
+        return serialNo;
+    }
+
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         EdgeToEdge.enable(this);
 
         SharedPreferences sharedPreferences = getSharedPreferences(Configuration.PREFS_NAME, Context.MODE_PRIVATE);
-        if(sharedPreferences.getBoolean("isRegistered", false)){
+        if (sharedPreferences.getBoolean("isRegistered", false)) {
             startActivity(new Intent(EndpointRegistration.this, SplashScreen.class));
             finish();
         }
@@ -425,7 +466,7 @@ public class EndpointRegistration extends AppCompatActivity {
         binding.lottieAnimation.playAnimation();
 
         findViewById(R.id.save_button).setOnClickListener(v -> {
-            if(access == null){
+            if (access == null) {
                 new SweetAlertDialog(EndpointRegistration.this, SweetAlertDialog.ERROR_TYPE)
                         .setTitleText("Access not selected")
                         .setContentText("Please select the access type and try again.")
@@ -433,9 +474,30 @@ public class EndpointRegistration extends AppCompatActivity {
                 return;
             }
 
-            if(access.equals("offline")) {
+            DeviceRepository deviceRepository = new DeviceRepository(this);
+            DatabaseHelper dbHelper = new DatabaseHelper(this);
+
+            deviceRepository.insertOrUpdateDevice(1,
+                    Build.MODEL,
+                    getSerial(),
+                    0,
+                    0,
+                    dbHelper.getCurrentDateTime(),
+                    true,
+                    dbHelper.getCurrentDateTime(),
+                    dbHelper.getCurrentDateTime(),
+                    "",
+                    false,
+                    false,
+                    false,
+                    false,
+                    false,
+                    false,
+                    false
+            );
+
+            if (access.equals("offline")) {
                 try {
-                    DatabaseHelper dbHelper = new DatabaseHelper(this);
                     dbHelper.resetUsersTable();
                     dbHelper.insertSuperAdmin();
 
@@ -445,10 +507,15 @@ public class EndpointRegistration extends AppCompatActivity {
                     editor.putBoolean("isRegistered", true);
                     editor.apply();
 
+                    initOfflineVariables();
+
+                    saveApiToken();
+                    saveApiEndpoint();
+
                     startActivity(new Intent(EndpointRegistration.this, SplashScreen.class));
                     finish();
 
-                }catch (Exception e){
+                } catch (Exception e) {
                     new SweetAlertDialog(EndpointRegistration.this, SweetAlertDialog.ERROR_TYPE)
                             .setTitleText("Failed to create database")
                             .setContentText("Failed to create database. Please close the app, and try again.")
@@ -458,23 +525,77 @@ public class EndpointRegistration extends AppCompatActivity {
                 return;
             }
 
-            saveApiToken();
-            saveApiEndpoint();
-        });
 
-        findViewById(R.id.offline_card).setOnClickListener(v -> {
-            saveApiToken();
-            saveApiEndpoint();
+            // Make a request to /health
+            ExecutorService executor = Executors.newSingleThreadExecutor();
+            executor.execute(() -> {
+                try {
+
+                    TextInputEditText editTextApiEndpoint = findViewById(R.id.api_endpoint);
+                    String apiEndpoint = Objects.requireNonNull(editTextApiEndpoint.getText()).toString();
+
+                    URL url = new URL(apiEndpoint + "/health");
+                    HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+                    conn.setRequestMethod("GET");
+                    conn.setRequestProperty("Accept", "application/json");
+
+                    int responseCode = conn.getResponseCode();
+                    if (responseCode == 200) {
+                        BufferedReader br = new BufferedReader(new InputStreamReader(conn.getInputStream()));
+                        StringBuilder response = new StringBuilder();
+                        String output;
+                        while ((output = br.readLine()) != null) {
+                            response.append(output);
+                        }
+                        br.close();
+                        conn.disconnect();
+
+                        JSONObject jsonResponse = new JSONObject(response.toString());
+                        if (jsonResponse.has("status") && "ok".equals(jsonResponse.getString("status"))) {
+                            runOnUiThread(() -> {
+                                saveApiToken();
+                                saveApiEndpoint();
+                            });
+                        } else {
+                          runOnUiThread(() -> {
+                              new SweetAlertDialog(EndpointRegistration.this, SweetAlertDialog.ERROR_TYPE)
+                                      .setTitleText("Invalid API Endpoint")
+                                      .setContentText("Please enter a valid API endpoint and try again.")
+                                      .show();
+                          });
+                        }
+                    } else {
+                        runOnUiThread(() -> {
+                            new SweetAlertDialog(EndpointRegistration.this, SweetAlertDialog.ERROR_TYPE)
+                                    .setTitleText("Invalid API Endpoint")
+                                    .setContentText("Please enter a valid API endpoint and try again.")
+                                    .show();
+                        });
+                    }
+                } catch (Exception e) {
+                    e.printStackTrace();
+                    runOnUiThread(() -> {
+                        new SweetAlertDialog(EndpointRegistration.this, SweetAlertDialog.ERROR_TYPE)
+                                .setTitleText("Invalid API Endpoint")
+                                .setContentText("Please enter a valid API endpoint and try again.")
+                                .show();
+                    });
+
+                }
+
+            });
+
+
         });
 
         offlineCard = findViewById(R.id.offline_card);
         onlineCard = findViewById(R.id.online_card);
 
         offlineCard.setOnClickListener(v -> {
-           offlineCard.setBackground(getDrawable(R.color.primary));
-           onlineCard.setBackground(getDrawable(R.color.white));
-           access = "offline";
-           findViewById(R.id.api_endpoint_container).setVisibility(View.GONE);
+            offlineCard.setBackground(getDrawable(R.color.primary));
+            onlineCard.setBackground(getDrawable(R.color.white));
+            access = "offline";
+            findViewById(R.id.api_endpoint_container).setVisibility(View.GONE);
         });
 
         onlineCard.setOnClickListener(v -> {

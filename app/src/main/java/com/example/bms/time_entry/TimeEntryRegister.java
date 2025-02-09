@@ -33,6 +33,7 @@ import android.util.Base64;
 import android.util.Log;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.Window;
 import android.view.WindowManager;
 import android.widget.EditText;
 import android.widget.FrameLayout;
@@ -45,7 +46,6 @@ import android.widget.Toast;
 
 import androidx.activity.EdgeToEdge;
 import androidx.activity.OnBackPressedCallback;
-import androidx.activity.result.ActivityResultLauncher;
 import androidx.cardview.widget.CardView;
 import androidx.core.content.ContextCompat;
 import androidx.core.graphics.Insets;
@@ -69,13 +69,10 @@ import com.example.bms.GroupActivity;
 import com.example.bms.MainActivity;
 import com.example.bms.MyAdminReceiver;
 import com.example.bms.R;
-import com.example.bms.data.Result;
 import com.example.bms.data.model.User;
 import com.hfteco.finger.FingerSDK;
 import com.hfteco.finger.OnCaptureBytesListener;
 import com.hfteco.finger.OnSdkInitListener;
-
-import org.springframework.security.crypto.bcrypt.BCrypt;
 
 import java.io.ByteArrayOutputStream;
 import java.io.File;
@@ -243,7 +240,7 @@ public class TimeEntryRegister extends CameraSettingActivity implements CameraMa
         });
     }
 
-    private String getStraingerDetection() {
+    private String getStrangerDetection() {
         SharedPreferences sharedPreferences = getSharedPreferences("device_settings", Context.MODE_PRIVATE);
         String strangerDetection = sharedPreferences.getString("STRANGER_DETECTION", "on");
         return strangerDetection;
@@ -347,7 +344,12 @@ public class TimeEntryRegister extends CameraSettingActivity implements CameraMa
             }
         });
 
-        builder.show();
+        runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                builder.show();
+            }
+        });
     }
 
     @Override
@@ -361,9 +363,12 @@ public class TimeEntryRegister extends CameraSettingActivity implements CameraMa
             return insets;
         });
 
-        fingerprintScoreThreshold = fingerprintScoreThreshold();
-        detectStranger = getStraingerDetection();
+        if (getWindow().hasFeature(Window.FEATURE_ACTION_BAR)) {
+            getWindow().invalidatePanelMenu(Window.FEATURE_ACTION_BAR);
+        }
 
+        fingerprintScoreThreshold = fingerprintScoreThreshold();
+        detectStranger = getStrangerDetection();
 
         devicePolicyManager = (DevicePolicyManager) getSystemService(Context.DEVICE_POLICY_SERVICE);
         adminComponent = new ComponentName(this, MyAdminReceiver.class);
@@ -446,7 +451,7 @@ public class TimeEntryRegister extends CameraSettingActivity implements CameraMa
         }
 
         Log.d("TimeEntryRegister", "Access: " + getAccess() + ".");
-        if(getAccess().equals("offline")) {
+        if(getAccess().equals("offline") && reminderLabel != null) {
             reminderLabel.setVisibility(View.GONE);
         }
 
@@ -1113,7 +1118,9 @@ public class TimeEntryRegister extends CameraSettingActivity implements CameraMa
                     try {
                         String tempString = new String(temp, "ISO8859-1");
                         for (Fingerprint fingerprint : fingerprints) {
-                            int score = fingerSDK.compareTemplateBytes(FingerSDK.TEMPLEATES.valueOf("ISO_19794_2_2011"), tempString.getBytes("ISO8859-1"), fingerprint.getKey().getBytes("ISO8859-1"));
+
+                            byte[] storedFingerprint = Base64.decode(fingerprint.getKey(), Base64.DEFAULT);
+                            int score = fingerSDK.compareTemplateBytes(FingerSDK.TEMPLEATES.valueOf("ISO_19794_2_2011"), tempString.getBytes(StandardCharsets.ISO_8859_1),storedFingerprint);
                             Log.d("TimeEntryRegister", "Score: " + score);
                             if (score > fingerprintScoreThreshold) {
                                 allowCapture = false;

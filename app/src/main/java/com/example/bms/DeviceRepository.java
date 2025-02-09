@@ -17,6 +17,42 @@ public class DeviceRepository {
         databaseHelper.insertOrUpdateDevice(groupId, model, serialNo, lat, lon, registeredAt, isOnline, lastSync, lastActivity, logoUrl, manualTimeEntry, checkIn, checkOut, breakIn, breakOut, overtimeIn, overtimeOut);
     }
 
+    public void newDeviceRecord(long groupId, String model, String serialNo, double lat, double lon, String registeredAt, boolean isOnline, String lastSync, String lastActivity, String logoUrl, boolean manualTimeEntry, boolean checkIn, boolean checkOut, boolean breakIn, boolean breakOut, boolean overtimeIn, boolean overtimeOut) {
+        SQLiteDatabase db = databaseHelper.getWritableDatabase();
+        ContentValues values = new ContentValues();
+
+        // Check if serialNo already exists
+        Cursor cursor = db.rawQuery("SELECT * FROM " + DatabaseHelper.TABLE_DEVICES + " WHERE " + DatabaseHelper.COLUMN_SERIAL_NO + " = ?", new String[]{serialNo});
+
+        values.put(DatabaseHelper.COLUMN_GROUP_ID, groupId);
+        values.put(DatabaseHelper.COLUMN_MODEL, model);
+        values.put(DatabaseHelper.COLUMN_SERIAL_NO, serialNo);
+        values.put(DatabaseHelper.COLUMN_LAT, lat);
+        values.put(DatabaseHelper.COLUMN_LON, lon);
+        values.put(DatabaseHelper.COLUMN_REGISTERED_AT, registeredAt);
+        values.put(DatabaseHelper.COLUMN_UPDATED_AT, databaseHelper.getCurrentDateTime());
+        values.put("is_online", isOnline);
+        values.put("last_sync", lastSync);
+        values.put("last_activity", lastActivity);
+        values.put("logo_url", logoUrl);
+        values.put("manual_time_entry", manualTimeEntry);
+        values.put("check_in", checkIn);
+        values.put("check_out", checkOut);
+        values.put("break_in", breakIn);
+        values.put("break_out", breakOut);
+        values.put("overtime_in", overtimeIn);
+        values.put("overtime_out", overtimeOut);
+
+        if (cursor.moveToFirst()) {
+            db.update(DatabaseHelper.TABLE_DEVICES, values, DatabaseHelper.COLUMN_SERIAL_NO + " = ?", new String[]{serialNo});
+        } else {
+            values.put(DatabaseHelper.COLUMN_CREATED_AT, databaseHelper.getCurrentDateTime());
+            db.insertWithOnConflict(DatabaseHelper.TABLE_DEVICES, null, values, SQLiteDatabase.CONFLICT_REPLACE);
+        }
+        cursor.close();
+        db.close();
+    }
+
    public void updateDeviceTimeConfig(String serialNo, boolean manualTimeEntry, boolean checkIn, boolean checkOut, boolean breakIn, boolean breakOut, boolean overtimeIn, boolean overtimeOut) {
        SQLiteDatabase db = databaseHelper.getWritableDatabase();
        ContentValues values = new ContentValues();

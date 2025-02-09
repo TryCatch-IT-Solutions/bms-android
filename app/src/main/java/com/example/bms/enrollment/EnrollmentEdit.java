@@ -2,10 +2,7 @@ package com.example.bms.enrollment;
 
 import android.os.Bundle;
 
-import androidx.activity.EdgeToEdge;
 import androidx.appcompat.app.AppCompatActivity;
-import androidx.core.graphics.Insets;
-import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
 
 import com.example.bms.App;
@@ -13,8 +10,6 @@ import com.example.bms.Biometric;
 import com.example.bms.BiometricRepository;
 import com.example.bms.CapitalizeFirstLetterInputFilter;
 import com.example.bms.DatabaseHelper;
-import com.example.bms.EncryptionUtil;
-import com.example.bms.EnrollmentActivity;
 import com.example.bms.FaceScanner;
 import com.example.bms.FingerPrintScanActivity;
 import com.example.bms.Fingerprint;
@@ -35,19 +30,15 @@ import android.hibory.Conversion;
 import android.net.Uri;
 import android.nfc.NfcAdapter;
 import android.nfc.Tag;
-import android.os.Bundle;
 
-import com.example.bms.SplashScreen;
 import com.example.bms.UserRepository;
 import com.example.bms.data.model.User;
 import com.example.bms.databinding.ActivityEnrollmentEditBinding;
-import com.example.bms.time_entry.TimeEntryRegister;
 import com.google.android.material.appbar.CollapsingToolbarLayout;
 import com.google.android.material.card.MaterialCardView;
 
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
-import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.Toolbar;
 import androidx.core.widget.NestedScrollView;
 
@@ -58,7 +49,6 @@ import android.provider.Settings;
 import android.text.Editable;
 import android.text.InputFilter;
 import android.text.TextWatcher;
-import android.util.Base64;
 import android.util.Log;
 import android.view.View;
 import android.view.ViewGroup;
@@ -68,7 +58,6 @@ import android.widget.Spinner;
 import android.widget.TextView;
 import android.widget.Toast;
 
-import com.example.bms.databinding.ActivityEnrollmentBinding;
 import com.google.android.material.textfield.TextInputEditText;
 
 import java.util.ArrayList;

@@ -1,7 +1,5 @@
 package com.example.bms;
 
-import static facex.facepass.InitFacePassHandler.group_name;
-
 import android.Manifest;
 import android.app.Activity;
 import android.app.DatePickerDialog;
@@ -11,8 +9,6 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
-import android.graphics.Bitmap;
-import android.graphics.BitmapFactory;
 import android.graphics.Color;
 import android.hibory.Conversion;
 import android.net.Uri;
@@ -21,8 +17,6 @@ import android.nfc.NfcManager;
 import android.nfc.Tag;
 import android.os.Bundle;
 
-import com.example.bms.enrollment.EnrollmentEdit;
-import com.example.bms.ui.login.LoginActivity;
 import com.google.android.material.appbar.CollapsingToolbarLayout;
 import com.google.android.material.card.MaterialCardView;
 
@@ -52,9 +46,6 @@ import android.widget.Toast;
 import com.example.bms.databinding.ActivityEnrollmentBinding;
 import com.google.android.material.textfield.TextInputEditText;
 
-import org.springframework.cache.interceptor.LoggingCacheErrorHandler;
-
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Calendar;
@@ -63,12 +54,6 @@ import java.util.List;
 import java.util.Objects;
 
 import cn.pedant.SweetAlert.SweetAlertDialog;
-import facex.facepass.InitFacePassHandler;
-import facex.facepass.camera.CameraActivity;
-import facex.facepass.db.User;
-import mcv.facepass.FacePassException;
-import mcv.facepass.FacePassHandler;
-import mcv.facepass.types.FacePassAddFaceResult;
 
 public class EnrollmentActivity extends AppCompatActivity {
 

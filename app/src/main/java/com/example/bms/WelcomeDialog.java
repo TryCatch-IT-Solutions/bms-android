@@ -13,8 +13,6 @@ import androidx.core.view.WindowInsetsCompat;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
-import com.example.bms.R;
-
 import java.util.Arrays;
 
 public class WelcomeDialog extends AppCompatActivity {

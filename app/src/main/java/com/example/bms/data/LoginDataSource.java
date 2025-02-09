@@ -5,7 +5,6 @@ import android.content.SharedPreferences;
 import android.util.Base64;
 import android.util.Log;
 
-import com.example.bms.Configuration;
 import com.example.bms.EncryptionUtil;
 import com.example.bms.GroupActivity;
 import com.example.bms.data.model.LoggedInUser;
@@ -13,13 +12,7 @@ import com.example.bms.DatabaseHelper;
 
 import org.springframework.security.crypto.bcrypt.BCrypt;
 
-import java.io.BufferedReader;
 import java.io.IOException;
-import java.io.InputStreamReader;
-import java.io.OutputStream;
-import java.net.HttpURLConnection;
-import java.net.URL;
-import java.util.Arrays;
 
 /**
  * Class that handles authentication w/ login credentials and retrieves user information.

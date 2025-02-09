@@ -1,6 +1,5 @@
 package com.example.bms;
 
-import android.annotation.SuppressLint;
 import android.content.ContentValues;
 import android.content.Context;
 import android.database.Cursor;
@@ -357,6 +356,21 @@ public class DatabaseHelper extends SQLiteOpenHelper {
         return groups;
     }
 
+    public long findUserIdByEmail(String email) {
+        SQLiteDatabase db = this.getReadableDatabase();
+        Cursor cursor = db.rawQuery("SELECT * FROM " + TABLE_USERS + " WHERE " + COLUMN_EMAIL + " = ?", new String[]{email});
+
+        if (cursor.moveToFirst()) {
+            long userId = cursor.getLong(cursor.getColumnIndexOrThrow(COLUMN_ID));
+            cursor.close();
+            db.close();
+            return userId;
+        } else {
+            cursor.close();
+            db.close();
+            return -1;
+        }
+    }
 
     public LoggedInUser getUserByEmail(String email) {
         SQLiteDatabase db = this.getReadableDatabase();

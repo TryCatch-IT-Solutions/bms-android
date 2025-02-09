@@ -1,12 +1,9 @@
 package com.example.bms;
 
-import android.Manifest;
 import android.annotation.SuppressLint;
 import android.app.Application;
 import android.content.ContentValues;
 import android.content.Context;
-import android.content.Intent;
-import android.content.IntentFilter;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.database.Cursor;
@@ -18,12 +15,12 @@ import android.os.Build;
 import android.os.Environment;
 import android.os.Handler;
 import android.os.Looper;
+import android.text.TextUtils;
 import android.util.Base64;
 import android.util.Log;
 import android.widget.Toast;
 
 import androidx.activity.result.ActivityResultLauncher;
-import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.annotation.NonNull;
 import androidx.core.app.ActivityCompat;
 
@@ -31,7 +28,6 @@ import com.example.bms.data.LoginDataSource;
 import com.example.bms.data.model.LoggedInUser;
 import com.example.bms.data.model.User;
 import com.example.bms.time_entry.TimeRepository;
-import com.example.bms.ui.login.LoginActivity;
 import com.github.yuweiguocn.library.greendao.MigrationHelper;
 import com.google.android.gms.common.ConnectionResult;
 import com.google.android.gms.common.GoogleApiAvailability;
@@ -42,14 +38,12 @@ import com.google.android.gms.location.LocationRequest;
 import com.google.android.gms.location.LocationResult;
 import com.google.android.gms.location.LocationServices;
 import com.google.android.gms.location.Priority;
-import com.google.android.material.textfield.TextInputEditText;
 
 import cn.pedant.SweetAlert.SweetAlertDialog;
 import facex.greendao.gen.DaoMaster;
 import facex.greendao.gen.DaoSession;
 import facex.greendao.gen.UserDao;
 
-import org.apache.commons.logging.LogFactory;
 import org.greenrobot.greendao.database.Database;
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -282,6 +276,112 @@ public class App extends Application {
         }
     }
 
+    private void updateDeviceSyncStatus(String serialNo, String status, String value) {
+
+        LoginDataSource loginDataSource = new LoginDataSource(App.this);
+        LoggedInUser userData = loginDataSource.getUserData(App.this);
+
+        if (userData == null) {
+            Log.e("App", "User data is null");
+            return;
+        }
+
+        JSONObject deviceDetails = new JSONObject();
+
+
+        try {
+            deviceDetails.put("serial_no", serialNo);
+            deviceDetails.put("status", status);
+            deviceDetails.put("value", value);
+        } catch (JSONException e) {
+            throw new RuntimeException(e);
+        }
+
+        try {
+            DeviceRepository deviceRepository = new DeviceRepository(this);
+            String token = getToken(this);
+
+            URL url = new URL(App.BASE_URL + "/sync/devices/status");
+            HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+            conn.setRequestMethod("POST");
+            conn.setRequestProperty("Content-Type", "application/json; utf-8");
+            conn.setRequestProperty("Accept", "application/json");
+            conn.setRequestProperty("Authorization", "Bearer " + token);
+
+            conn.setDoOutput(true);
+
+            try (OutputStream os = conn.getOutputStream()) {
+                byte[] input = deviceDetails.toString().getBytes("utf-8");
+                os.write(input, 0, input.length);
+            }
+
+            int responseCode = conn.getResponseCode();
+            Log.d("DeviceRegistration", "Response Code: " + responseCode);
+
+            try (BufferedReader br = new BufferedReader(
+                    new InputStreamReader(conn.getInputStream(), "utf-8"))) {
+                StringBuilder response = new StringBuilder();
+                String responseLine;
+                while ((responseLine = br.readLine()) != null) {
+                    response.append(responseLine.trim());
+                }
+                Log.d("App", "Status: " + status + " Value: " + value + " Serial No: " + serialNo);
+                Log.d("App", "Response 1: " + response.toString());
+            }
+
+        } catch (Exception e) {
+            e.printStackTrace();
+            Log.e("DeviceRegistration", "Error registering device: " + e.getMessage() + getToken(this));
+        }
+    }
+
+    private void uploadData(){
+        Log.d("App", "Uploading data");
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                String serialNo = getSerial();
+                ExecutorService executor = Executors.newSingleThreadExecutor();
+
+                executor.execute(()-> updateDeviceSyncStatus(serialNo,"pull_status","pending"));
+                executor.execute(()-> syncUsersOnLogout(App.this,null));
+                executor.execute(()-> syncTimeEntriesPaginated(App.this,null));
+
+                new Handler(Looper.getMainLooper()).postDelayed(new Runnable() {
+                    @Override
+                    public void run() {
+                        executor.execute(()-> updateDeviceSyncStatus(serialNo,"pull_status","off"));
+                    }
+                }, 5000);
+            }
+        }).start();
+    }
+
+    private void downloadData(){
+
+        Log.d("App", "Downloading data");
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                String serialNo = getSerial();
+                ExecutorService executor = Executors.newSingleThreadExecutor();
+
+                executor.execute(()-> updateDeviceSyncStatus(serialNo,"push_status","pending"));
+                executor.execute(()-> syncUsersFromWeb());
+                executor.execute(()-> getTimeEntries());
+                executor.execute(()-> getAnnouncements());
+
+                new Handler(Looper.getMainLooper()).postDelayed(new Runnable() {
+                    @Override
+                    public void run() {
+                        executor.execute(()-> updateDeviceSyncStatus(serialNo,"push_status","off"));
+                    }
+                }, 5000);
+            }
+        }).start();
+
+    }
+
     private String getDeviceModel(){
         return android.os.Build.MODEL;
     }
@@ -323,6 +423,8 @@ public class App extends Application {
             return null;
         }
     }
+
+
 
     private void getDeviceSettings() {
         ExecutorService executor = Executors.newSingleThreadExecutor();
@@ -413,7 +515,8 @@ public class App extends Application {
                 conn.disconnect();
             } catch (Exception e) {
                 handler.post(() -> {
-                    Toast.makeText(this, "Error: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+                    Log.e("App", "Error: " + e.getMessage());
+//                    Toast.makeText(this, "Error: " + e.getMessage(), Toast.LENGTH_SHORT).show();
                 });
                 e.printStackTrace();
             }
@@ -512,6 +615,15 @@ public class App extends Application {
         if(getAccess().equals("offline")) {
             return;
         }
+
+        LoginDataSource loginDataSource = new LoginDataSource(App.this);
+        LoggedInUser userData = loginDataSource.getUserData(App.this);
+
+        if (userData == null) {
+            Log.e("App", "User data is null");
+            return;
+        }
+
 
         Log.d("DeviceRegistration", "Device Battery: " + getDeviceBattery());
 
@@ -666,21 +778,41 @@ public class App extends Application {
 
     }
 
+    private String getSerial(){
+        String serialNo;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            try {
+                serialNo = Build.getSerial();
+            } catch (SecurityException e) {
+                serialNo = Build.SERIAL;
+//                        serialNo = "Permission not granted";
+            }
+        } else {
+            serialNo = Build.SERIAL;
+        }
+        return serialNo;
+    }
+
     private double[] getLatAndLong() {
         SharedPreferences sharedPreferences = getSharedPreferences(GroupActivity.PREFS_NAME, Context.MODE_PRIVATE);
-        double latitude = Double.parseDouble(sharedPreferences.getString("latitude", "0"));
-        double longitude = Double.parseDouble(sharedPreferences.getString("longitude", "0"));
+        double latitude = 0, longitude = 0;
+        try{
+            latitude = Double.parseDouble(sharedPreferences.getString("latitude", "0"));
+            longitude = Double.parseDouble(sharedPreferences.getString("longitude", "0"));
+        }catch (Exception e){
+            e.printStackTrace();
+        }
+
 //        Log.d("Location", "Lat: " + latitude + ", Lon: " + longitude);
         return new double[]{latitude, longitude};
     }
 
     public void getSimilarDevices(){
 
-        SharedPreferences sharedPreferences = getSharedPreferences(Configuration.PREFS_NAME, Context.MODE_PRIVATE);
-
+        String mySerial = getSerial();
         try {
             String model = getDeviceModel();
-            URL url = new URL(App.BASE_URL + "/all/devices?model=" + model);
+            URL url = new URL(App.BASE_URL + "/all/devices?model=" + model + "&serial_no=" + mySerial);
             HttpURLConnection conn = (HttpURLConnection) url.openConnection();
             conn.setRequestMethod("GET");
             conn.setRequestProperty("Accept", "application/json");
@@ -711,6 +843,19 @@ public class App extends Application {
                 JSONObject device = devices.getJSONObject(i);
 
                 DeviceModel storedDevice = deviceRepository.getDevice(device.getString("serial_no"));
+
+                if(mySerial.equals(device.getString("serial_no"))){
+                    String pushStatus = device.getString("push_status");
+                    String pullStatus = device.getString("pull_status");
+                    if(pushStatus.equals("on")) {
+                        downloadData();
+                    }
+                    if (pullStatus.equals("on")) {
+                        uploadData();
+                    }
+
+                    Log.d("DeviceRegistration", "Your device: " + device.toString());
+                }
 
                 if(storedDevice != null && device.getString("serial_no").equals(storedDevice.getSerialNo()) && !storedDevice.isSynced() ) {
                     continue;
@@ -829,11 +974,12 @@ public class App extends Application {
                             for (int k = 0; k < fingerprints.length(); k++) {
                                 JSONObject fingerprint = fingerprints.getJSONObject(k);
 
-                                byte[] decodedBytes = Base64.decode(fingerprint.getString("key"), Base64.DEFAULT);
-                                String decodedKey = new String(decodedBytes, StandardCharsets.UTF_8);
+//                                Log.d("Fingerprint", "Key: " + fingerprint.getString("key"));
+//                                byte[] decodedBytes = Base64.decode(fingerprint.getString("key"), Base64.DEFAULT);
+//                                String decodedKey = new String(decodedBytes, StandardCharsets.ISO_8859_1);
                                 fingerprintRepository.insertOrUpdateFingerprint(
                                         biometricId,
-                                        decodedKey
+                                        fingerprint.getString("key")
                                 );
                             }
                         }
@@ -870,6 +1016,16 @@ public class App extends Application {
                 .replace("\"", "\\\"")
                 .replace("\n", "\\n")
                 .replace("\r", "\\r");
+    }
+
+    private String reverseEscapeJson(String input) {
+        if (input == null) {
+            return ""; // or "null" if you want to explicitly represent null in JSON
+        }
+        return input.replace("\\\"", "\"")
+                .replace("\\n", "\n")
+                .replace("\\r", "\r")
+                .replace("\\\\", "\\");
     }
 
     private void writeResponseToFile(String response) {
@@ -910,9 +1066,6 @@ public class App extends Application {
         void onFailure(String errorMessage);
     }
 
-    public void syncUsers(Context context, SyncCallback callback) {
-        syncUsers(context, callback, false);
-    }
 
     public void getAnnouncements() {
 
@@ -1045,20 +1198,25 @@ public class App extends Application {
                 Log.d("Response 1:", response.toString());
                 JSONArray timeEntries = new JSONArray(response.toString());
 
+                UserRepository userRepository = new UserRepository(App.this);
                 TimeRepository repository = new TimeRepository(App.this);
                 for (int i = 0; i < timeEntries.length(); i++) {
                     JSONObject entry = timeEntries.getJSONObject(i);
-                    if(repository.hasTimeEntry(entry.getLong("user_id"), entry.getString("datetime"))) {
+
+                    long userId = userRepository.findUserIdByEmail(entry.getJSONObject("employee").getString("email"));
+
+                    if(repository.hasTimeEntry(userId, entry.getString("datetime"))) {
                         System.out.println("Time entry already exists: " + entry.toString());
                         continue;
                     }
+
                     repository.insertTimeEntry(
-                            entry.getLong("user_id"),
+                            userId,
                             entry.getString("type"),
                             entry.getString("datetime"),
                             entry.getString("metadata"),
                             true,
-                            null,
+                            entry.getString("snapshot_path"),
                             entry.getString("serial_no")
                     );
 
@@ -1080,8 +1238,218 @@ public class App extends Application {
         }
     }
 
+    class BooleanWrapper {
+        public boolean value;
+        public BooleanWrapper(boolean value) {
+            this.value = value;
+        }
+    }
+
+    public void syncTimeEntriesPaginated(Context context,SyncCallback callback) {
+        syncTimeEntriesPaginated(context, callback, 10);
+    }
+
     @SuppressLint("Range")
+    public void syncTimeEntriesPaginated(Context context,SyncCallback callback, int _limit) {
+        String access = getAccess();
+        System.out.println("Access is: " + access);
+
+
+        if (access.equals("offline")) {
+            if (callback != null) {
+                callback.onSuccess();
+            }
+            return;
+        }
+
+        Handler handler = new Handler(Looper.getMainLooper());
+        ExecutorService executor = Executors.newSingleThreadExecutor();
+
+        Runnable syncTask = new Runnable() {
+            @Override
+            public void run() {
+                DatabaseHelper dbHelper = new DatabaseHelper(context);
+                SQLiteDatabase db = dbHelper.getReadableDatabase();
+                String token = getToken(context);
+
+                BooleanWrapper hasMoreData = new BooleanWrapper(true);
+                int offset = 0;
+                int limit = _limit;
+
+                List<Integer> ids = new ArrayList<>();
+
+                while (hasMoreData.value) {
+                    Cursor cursor = db.rawQuery(
+                            "SELECT te.*, u." + DatabaseHelper.COLUMN_EMAIL + " FROM " + DatabaseHelper.TABLE_TIME_ENTRIES + " te " +
+                                    "JOIN " + DatabaseHelper.TABLE_USERS + " u ON te." + DatabaseHelper.COLUMN_USER_ID + " = u." + DatabaseHelper.COLUMN_ID +
+                                    " WHERE te." + DatabaseHelper.COLUMN_IS_SYNCED + " = 0 LIMIT " + limit + " OFFSET " + offset, null);
+
+                    if (cursor.getCount() == 0) {
+                        cursor.close();
+                        hasMoreData.value = false;
+                        if (callback != null) {
+                            callback.onSuccess();
+                        }
+                        break;
+                    }
+
+
+                    JSONArray timeEntriesArray = new JSONArray();
+                    List<File> imageFiles = new ArrayList<>();
+
+
+                    while (cursor.moveToNext()) {
+                        JSONObject timeEntry = new JSONObject();
+                        try {
+                            timeEntry.put("id", cursor.getInt(cursor.getColumnIndex(DatabaseHelper.COLUMN_ID)));
+                            timeEntry.put("user_id", cursor.getInt(cursor.getColumnIndex(DatabaseHelper.COLUMN_USER_ID)));
+                            timeEntry.put("serial_no", cursor.getString(cursor.getColumnIndex(DatabaseHelper.COLUMN_SERIAL_NO)));
+                            timeEntry.put("type", cursor.getInt(cursor.getColumnIndex(DatabaseHelper.COLUMN_TYPE)));
+                            timeEntry.put("email", cursor.getString(cursor.getColumnIndex(DatabaseHelper.COLUMN_EMAIL)));
+                            timeEntry.put("type", cursor.getString(cursor.getColumnIndex(DatabaseHelper.COLUMN_TYPE)));
+                            timeEntry.put("datetime", cursor.getString(cursor.getColumnIndex(DatabaseHelper.COLUMN_DATETIME)));
+                            timeEntry.put("metadata", cursor.getString(cursor.getColumnIndex(DatabaseHelper.COLUMN_METADATA)));
+                            timeEntry.put("is_synced", cursor.getInt(cursor.getColumnIndex(DatabaseHelper.COLUMN_IS_SYNCED)));
+                            timeEntry.put("lat", cursor.getDouble(cursor.getColumnIndex(DatabaseHelper.COLUMN_LATITUDE)));
+                            timeEntry.put("lon", cursor.getDouble(cursor.getColumnIndex(DatabaseHelper.COLUMN_LONGITUDE)));
+                            timeEntry.put("created_at", cursor.getString(cursor.getColumnIndex(DatabaseHelper.COLUMN_CREATED_AT)));
+                            timeEntry.put("updated_at", cursor.getString(cursor.getColumnIndex(DatabaseHelper.COLUMN_UPDATED_AT)));
+                            timeEntry.put("deleted_at", cursor.getString(cursor.getColumnIndex(DatabaseHelper.COLUMN_DELETED_AT)));
+                            timeEntry.put("deleted_by", cursor.getString(cursor.getColumnIndex(DatabaseHelper.COLUMN_DELETED_BY)));
+
+
+                            Log.d("SyncTimeEntriesTask", "Snapshot Type: " + cursor.getString(cursor.getColumnIndex(DatabaseHelper.COLUMN_TYPE)));
+                            String snapshotPath = cursor.getString(cursor.getColumnIndex("snapshot"));
+                            if (snapshotPath != null && !snapshotPath.isEmpty()) {
+                                File imageFile = new File(snapshotPath);
+                                if (imageFile.exists()) {
+                                    imageFiles.add(imageFile);
+                                    timeEntry.put("snapshot", imageFile.getName());
+                                } else {
+                                    timeEntry.put("snapshot", JSONObject.NULL);
+                                }
+                            } else {
+                                timeEntry.put("snapshot", JSONObject.NULL);
+                            }
+
+                            ids.add(cursor.getInt(cursor.getColumnIndex(DatabaseHelper.COLUMN_ID)));
+                        } catch (JSONException e) {
+                            e.printStackTrace();
+                        }
+                        timeEntriesArray.put(timeEntry);
+                    }
+                    cursor.close();
+
+                    JSONObject jsonData = new JSONObject();
+                    try {
+                        jsonData.put("time_entries", timeEntriesArray);
+                    } catch (JSONException e) {
+                        e.printStackTrace();
+                    }
+
+                    boolean success = false;
+                    String errorMessage = null;
+                    String boundary = "*****";
+
+                    try {
+                        URL url = new URL(App.BASE_URL + "/sync/time_entries");
+                        HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+                        conn.setRequestMethod("POST");
+                        conn.setRequestProperty("Authorization", "Bearer " + token);
+                        conn.setRequestProperty("Content-Type", "multipart/form-data; boundary=" + boundary);
+                        conn.setRequestProperty("Accept", "application/json");
+                        conn.setDoOutput(true);
+
+                        DataOutputStream dos = new DataOutputStream(conn.getOutputStream());
+
+                        // Write JSON data
+                        dos.writeBytes("--" + boundary + "\r\n");
+                        dos.writeBytes("Content-Disposition: form-data; name=\"time_entries\"\r\n\r\n");
+                        dos.writeBytes(jsonData.getJSONArray("time_entries").toString());
+                        dos.writeBytes("\r\n");
+
+                        Log.d("SyncTimeEntriesTask", "JSON Data: " + jsonData.toString());
+                        // Attach image files
+                        for (int i = 0; i < imageFiles.size(); i++) {
+                            File imageFile = imageFiles.get(i);
+                            FileInputStream fis = new FileInputStream(imageFile);
+
+                            dos.writeBytes("--" + boundary + "\r\n");
+                            dos.writeBytes("Content-Disposition: form-data; name=\"snapshots[" + i + "]\"; filename=\"" + imageFile.getName() + "\"\r\n");
+                            dos.writeBytes("Content-Type: " + URLConnection.guessContentTypeFromName(imageFile.getName()) + "\r\n\r\n");
+                            byte[] buffer = new byte[1024];
+                            int bytesRead;
+                            while ((bytesRead = fis.read(buffer)) != -1) {
+                                dos.write(buffer, 0, bytesRead);
+                            }
+                            dos.writeBytes("\r\n");
+                            fis.close();
+                        }
+
+                        dos.writeBytes("--" + boundary + "--\r\n");
+                        dos.flush();
+                        dos.close();
+
+                        int responseCode = conn.getResponseCode();
+                        if (responseCode == HttpURLConnection.HTTP_OK) {
+                            success = true;
+                        } else {
+                            try (BufferedReader br = new BufferedReader(new InputStreamReader(conn.getErrorStream(), "utf-8"))) {
+                                StringBuilder response = new StringBuilder();
+                                String responseLine;
+                                while ((responseLine = br.readLine()) != null) {
+                                    response.append(responseLine.trim());
+                                }
+                                Log.e("SyncTimeEntriesTask", "Response: " + response.toString());
+                                JSONObject jsonResponse = new JSONObject(response.toString());
+                                if (jsonResponse.has("message")) {
+                                    errorMessage = jsonResponse.getString("message");
+                                }
+                            }
+                        }
+                    } catch (Exception e) {
+                        Log.e("SyncTimeEntriesTask", e.getMessage());
+                        errorMessage = e.getMessage();
+                        e.printStackTrace();
+                    }
+
+                    String finalErrorMessage = errorMessage;
+                    boolean finalSuccess = success;
+                    handler.post(() -> {
+                        if (finalSuccess) {
+                            SQLiteDatabase writableDb = dbHelper.getWritableDatabase();
+                            ContentValues values = new ContentValues();
+                            values.put(DatabaseHelper.COLUMN_IS_SYNCED, 1);
+                            writableDb.update(DatabaseHelper.TABLE_TIME_ENTRIES, values, DatabaseHelper.COLUMN_ID + " IN (" + TextUtils.join(",", ids) + ")", null);
+                            writableDb.close();
+
+                            if (callback != null) {
+                                callback.onSuccess();
+                            }
+
+                        } else {
+                            hasMoreData.value = false;
+
+                            if (callback != null) {
+                                callback.onFailure(finalErrorMessage);
+                            }
+                        }
+                    });
+
+                    offset += limit;
+                }
+            }
+        };
+
+        executor.execute(syncTask);
+    }
+
     public void syncTimeEntriesOnLogout(Context context, SyncCallback callback) {
+        syncTimeEntriesOnLogout(context, callback, 10);
+    }
+
+    @SuppressLint("Range")
+    public void syncTimeEntriesOnLogout(Context context, SyncCallback callback,int limit) {
         String access = getAccess();
         System.out.println("Access is: " + access);
 
@@ -1099,7 +1467,7 @@ public class App extends Application {
             Cursor cursor = db.rawQuery(
                     "SELECT te.*, u." + DatabaseHelper.COLUMN_EMAIL + " FROM " + DatabaseHelper.TABLE_TIME_ENTRIES + " te " +
                             "JOIN " + DatabaseHelper.TABLE_USERS + " u ON te." + DatabaseHelper.COLUMN_USER_ID + " = u." + DatabaseHelper.COLUMN_ID +
-                            " WHERE te." + DatabaseHelper.COLUMN_IS_SYNCED + " = 0", null);
+                            " WHERE te." + DatabaseHelper.COLUMN_IS_SYNCED + " = 0 LIMIT 10", null);
             String token = getToken(context);
 
             if (cursor.getCount() == 0) {
@@ -1110,15 +1478,18 @@ public class App extends Application {
                 return;
             }
 
+            Log.d("SyncTimeEntriesTask", "Cursor count: " + cursor.getCount());
+
             JSONArray timeEntriesArray = new JSONArray();
             List<File> imageFiles = new ArrayList<>();
 
+            List<Integer> ids = new ArrayList<>();
             while (cursor.moveToNext()) {
                 JSONObject timeEntry = new JSONObject();
                 try {
                     timeEntry.put("id", cursor.getInt(cursor.getColumnIndex(DatabaseHelper.COLUMN_ID)));
                     timeEntry.put("user_id", cursor.getInt(cursor.getColumnIndex(DatabaseHelper.COLUMN_USER_ID)));
-                    timeEntry.put("serial_no", cursor.getInt(cursor.getColumnIndex(DatabaseHelper.COLUMN_SERIAL_NO)));
+                    timeEntry.put("serial_no", cursor.getString(cursor.getColumnIndex(DatabaseHelper.COLUMN_SERIAL_NO)));
                     timeEntry.put("type", cursor.getInt(cursor.getColumnIndex(DatabaseHelper.COLUMN_TYPE)));
                     timeEntry.put("email", cursor.getString(cursor.getColumnIndex(DatabaseHelper.COLUMN_EMAIL)));
                     timeEntry.put("type", cursor.getString(cursor.getColumnIndex(DatabaseHelper.COLUMN_TYPE)));
@@ -1132,7 +1503,6 @@ public class App extends Application {
                     timeEntry.put("deleted_at", cursor.getString(cursor.getColumnIndex(DatabaseHelper.COLUMN_DELETED_AT)));
                     timeEntry.put("deleted_by", cursor.getString(cursor.getColumnIndex(DatabaseHelper.COLUMN_DELETED_BY)));
 
-                    Log.d("SyncTimeEntriesTask", "Snapshot Type: " + cursor.getString(cursor.getColumnIndex(DatabaseHelper.COLUMN_TYPE)));
                     String snapshotPath = cursor.getString(cursor.getColumnIndex("snapshot"));
                     if (snapshotPath != null && !snapshotPath.isEmpty()) {
                         File imageFile = new File(snapshotPath);
@@ -1146,6 +1516,7 @@ public class App extends Application {
                         timeEntry.put("snapshot", JSONObject.NULL);
                     }
 
+                    ids.add(cursor.getInt(cursor.getColumnIndex(DatabaseHelper.COLUMN_ID)));
                 } catch (JSONException e) {
                     e.printStackTrace();
                 }
@@ -1237,7 +1608,7 @@ public class App extends Application {
                         SQLiteDatabase writableDb = dbHelper.getWritableDatabase();
                         ContentValues values = new ContentValues();
                         values.put(DatabaseHelper.COLUMN_IS_SYNCED, 1);
-                        writableDb.update(DatabaseHelper.TABLE_TIME_ENTRIES, values, null, null);
+                        writableDb.update(DatabaseHelper.TABLE_TIME_ENTRIES, values, DatabaseHelper.COLUMN_ID + " IN (" + TextUtils.join(",", ids) + ")", null);
                         writableDb.close();
 
                         if (callback != null) {
@@ -1327,8 +1698,8 @@ public class App extends Application {
 
                     for (Fingerprint fingerprint : fingerprints) {
                         JSONObject fingerprintObject = new JSONObject();
-                        String key = Base64.encodeToString(fingerprint.getKey().getBytes(), Base64.DEFAULT);
-                        fingerprintObject.put("key", escapeJson(key));
+//                        String key = Base64.encodeToString(fingerprint.getKey().getBytes(), Base64.DEFAULT);
+                        fingerprintObject.put("key", fingerprint.getKey());
                         fingerprintsArray.put(fingerprintObject);
                     }
                     biometricObject.put("fingerprints", fingerprintsArray);
@@ -1531,211 +1902,6 @@ public class App extends Application {
                     Log.e("RefreshToken", "Error refreshing token: " + e.getMessage());
                 });
             }
-        });
-    }
-
-
-    @SuppressLint("Range")
-    public void syncUsers(Context context, SyncCallback callback, boolean silent) {
-        String access = getAccess();
-        System.out.println("Access is: " + access);
-
-        if(access.equals("offline")) {
-            if (callback != null) {
-                callback.onSuccess();
-            }
-            return;
-        }
-
-        String token = getToken(context);
-
-        SQLiteDatabase db = dbHelper.getReadableDatabase();
-        Cursor cursor = db.rawQuery("SELECT * FROM " + DatabaseHelper.TABLE_USERS + " WHERE is_synced = 0", null);
-
-        Log.d("SyncUsersTask", "Cursor count: " + cursor.getCount());
-        if (cursor.getCount() < 1) {
-            cursor.close();
-            //db.close();
-           if(!silent){
-               new SweetAlertDialog(context, SweetAlertDialog.WARNING_TYPE)
-                       .setTitleText("All users have been synced already.")
-                       .show();
-           }
-            return;
-        }
-
-        StringBuilder jsonBuilder = new StringBuilder();
-        jsonBuilder.append("[");
-
-
-        while (cursor.moveToNext()) {
-            jsonBuilder.append("{");
-            jsonBuilder.append("\"id\":").append(cursor.getInt(cursor.getColumnIndex(DatabaseHelper.COLUMN_ID))).append(",");
-            jsonBuilder.append("\"group_id\":").append(cursor.getInt(cursor.getColumnIndex(DatabaseHelper.COLUMN_GROUP_ID))).append(",");
-            jsonBuilder.append("\"role\":\"").append(cursor.getString(cursor.getColumnIndex(DatabaseHelper.COLUMN_ROLE))).append("\",");
-            jsonBuilder.append("\"first_name\":\"").append(cursor.getString(cursor.getColumnIndex(DatabaseHelper.COLUMN_FIRST_NAME))).append("\",");
-            jsonBuilder.append("\"middle_name\":\"").append(cursor.getString(cursor.getColumnIndex(DatabaseHelper.COLUMN_MIDDLE_NAME))).append("\",");
-            jsonBuilder.append("\"last_name\":\"").append(cursor.getString(cursor.getColumnIndex(DatabaseHelper.COLUMN_LAST_NAME))).append("\",");
-            jsonBuilder.append("\"lat\":").append(cursor.getDouble(cursor.getColumnIndex(DatabaseHelper.COLUMN_LAT))).append(",");
-            jsonBuilder.append("\"lon\":").append(cursor.getDouble(cursor.getColumnIndex(DatabaseHelper.COLUMN_LON))).append(",");
-            jsonBuilder.append("\"address1\":\"").append(cursor.getString(cursor.getColumnIndex(DatabaseHelper.COLUMN_ADDRESS1))).append("\",");
-            jsonBuilder.append("\"address2\":\"").append(cursor.getString(cursor.getColumnIndex(DatabaseHelper.COLUMN_ADDRESS2))).append("\",");
-            jsonBuilder.append("\"barangay\":\"").append(cursor.getString(cursor.getColumnIndex(DatabaseHelper.COLUMN_BARANGAY))).append("\",");
-            jsonBuilder.append("\"municipality\":\"").append(cursor.getString(cursor.getColumnIndex(DatabaseHelper.COLUMN_MUNICIPALITY))).append("\",");
-            jsonBuilder.append("\"province\":\"").append(cursor.getString(cursor.getColumnIndex(DatabaseHelper.COLUMN_PROVINCE))).append("\",");
-            jsonBuilder.append("\"birth_date\":\"").append(cursor.getString(cursor.getColumnIndex(DatabaseHelper.COLUMN_BIRTH_DATE))).append("\",");
-            jsonBuilder.append("\"gender\":\"").append(cursor.getString(cursor.getColumnIndex(DatabaseHelper.COLUMN_GENDER))).append("\",");
-            jsonBuilder.append("\"zip_code\":\"").append(cursor.getString(cursor.getColumnIndex(DatabaseHelper.COLUMN_ZIP_CODE))).append("\",");
-            jsonBuilder.append("\"email\":\"").append(cursor.getString(cursor.getColumnIndex(DatabaseHelper.COLUMN_EMAIL))).append("\",");
-            jsonBuilder.append("\"phone_number\":\"").append(cursor.getString(cursor.getColumnIndex(DatabaseHelper.COLUMN_PHONE_NUMBER))).append("\",");
-            jsonBuilder.append("\"emergency_contact_name\":\"").append(cursor.getString(cursor.getColumnIndex(DatabaseHelper.COLUMN_EMERGENCY_CONTACT_NAME))).append("\",");
-            jsonBuilder.append("\"emergency_contact_no\":\"").append(cursor.getString(cursor.getColumnIndex(DatabaseHelper.COLUMN_EMERGENCY_CONTACT_NO))).append("\",");
-            jsonBuilder.append("\"status\":\"").append(cursor.getString(cursor.getColumnIndex(DatabaseHelper.COLUMN_STATUS))).append("\",");
-            jsonBuilder.append("\"created_at\":\"").append(cursor.getString(cursor.getColumnIndex(DatabaseHelper.COLUMN_CREATED_AT))).append("\",");
-            jsonBuilder.append("\"updated_at\":\"").append(cursor.getString(cursor.getColumnIndex(DatabaseHelper.COLUMN_UPDATED_AT))).append("\",");
-            jsonBuilder.append("\"deleted_at\":\"").append("").append("\",");
-            jsonBuilder.append("\"deleted_by\":\"").append(cursor.getString(cursor.getColumnIndex(DatabaseHelper.COLUMN_DELETED_BY))).append("\",");
-
-            long userId = cursor.getLong(cursor.getColumnIndex(DatabaseHelper.COLUMN_ID));
-            List<Biometric> biometrics = dbHelper.getBiometricsByUserId(userId);
-            jsonBuilder.append("\"biometrics\":[");
-
-            for (Biometric biometric : biometrics) {
-                jsonBuilder.append("{");
-                jsonBuilder.append("\"id\":").append(biometric.getId()).append(",");
-                jsonBuilder.append("\"key\":\"").append(escapeJson(biometric.getKey())).append("\",");
-                jsonBuilder.append("\"is_synced\":\"").append(escapeJson(biometric.getIsSynced().toString())).append("\",");
-                jsonBuilder.append("\"type\":\"").append(escapeJson(biometric.getType())).append("\"");
-
-                List<Fingerprint> fingerprints = dbHelper.getFingerprintsByBiometricId(biometric.getId());
-                jsonBuilder.append(",\"fingerprints\":[");
-
-                for (Fingerprint fingerprint : fingerprints) {
-                    String key = Base64.encodeToString(fingerprint.getKey().getBytes(), Base64.DEFAULT);
-                    jsonBuilder.append("{");
-                    jsonBuilder.append("\"key\":\"").append(escapeJson(key)).append("\"");
-                    jsonBuilder.append("},");
-                }
-                if (jsonBuilder.charAt(jsonBuilder.length() - 1) == ',') {
-                    jsonBuilder.setLength(jsonBuilder.length() - 1);
-                }
-                jsonBuilder.append("]");
-                jsonBuilder.append("},");
-            }
-            if (jsonBuilder.charAt(jsonBuilder.length() - 1) == ',') {
-                jsonBuilder.setLength(jsonBuilder.length() - 1);
-            }
-            jsonBuilder.append("]");
-            jsonBuilder.append("},");
-        }
-
-        if (jsonBuilder.length() > 1) {
-            jsonBuilder.setLength(jsonBuilder.length() - 1);
-        }
-        jsonBuilder.append("]");
-
-        cursor.close();
-        //db.close();
-
-        String usersJson = jsonBuilder.toString();
-        String jsonData = "{\"users\":" + usersJson + "}";
-
-        System.out.println("UserRe:"+jsonData);
-
-        writeResponseToFile(jsonData);
-        ExecutorService executor = Executors.newSingleThreadExecutor();
-        Handler handler = new Handler(Looper.getMainLooper());
-
-        executor.execute(() -> {
-            boolean success = false;
-            String errorMessage = null;
-            new Handler(Looper.getMainLooper()).post(() -> {
-                if(!silent) {
-                    dialog = new SweetAlertDialog(context, SweetAlertDialog.PROGRESS_TYPE)
-                            .setTitleText("Loading");
-                    dialog.show();
-                }
-            });
-
-            try {
-                URL url = new URL(BASE_URL + "/sync/users");
-                HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-                conn.setRequestMethod("POST");
-                conn.setRequestProperty("Content-Type", "application/json; utf-8");
-                conn.setRequestProperty("Accept", "application/json");
-                conn.setRequestProperty("Authorization", "Bearer " + token);
-                conn.setDoOutput(true);
-
-                try (OutputStream os = conn.getOutputStream()) {
-                    byte[] input = jsonData.getBytes("utf-8");
-                    os.write(input, 0, input.length);
-                }
-
-                int responseCode = conn.getResponseCode();
-                if (responseCode == HttpURLConnection.HTTP_OK) {
-                    success = true;
-                } else {
-                    try (BufferedReader br = new BufferedReader(new InputStreamReader(conn.getErrorStream(), "utf-8"))) {
-                        StringBuilder response = new StringBuilder();
-                        String responseLine;
-                        while ((responseLine = br.readLine()) != null) {
-                            response.append(responseLine.trim());
-                        }
-                        System.out.println("The Response: " + response.toString());
-                        System.out.println("Token: " + token);
-                        if(response.toString().equals("false")) {
-                            errorMessage = "Unauthorized, please login again.";
-                        }else {
-                            JSONObject jsonResponse = new JSONObject(response.toString());
-                            if (jsonResponse.has("message")) {
-                                errorMessage = jsonResponse.getString("message");
-                            }
-                        }
-
-                    }
-                }
-            } catch (Exception e) {
-                Log.e("SyncUsersTask", e.getMessage());
-                errorMessage = e.getMessage();
-                e.printStackTrace();
-            }
-
-            boolean finalSuccess = success;
-            String finalErrorMessage = errorMessage;
-            handler.post(() -> {
-                if(!silent) {
-                    dialog.dismiss();
-                }
-
-                if (finalSuccess) {
-
-                    if(!silent) {
-                       dialog = new SweetAlertDialog(context, SweetAlertDialog.SUCCESS_TYPE)
-                                .setTitleText("Sync successful");
-                        dialog.show();
-                    }
-
-                    SQLiteDatabase writableDb = dbHelper.getWritableDatabase();
-                    ContentValues values = new ContentValues();
-                    values.put(DatabaseHelper.COLUMN_IS_SYNCED, 1);
-                    writableDb.update(DatabaseHelper.TABLE_USERS, values, null, null);
-                    writableDb.close();
-
-                    if (callback != null) {
-                        callback.onSuccess();
-                    }
-                } else {
-
-                    dialog = new SweetAlertDialog(context, SweetAlertDialog.ERROR_TYPE)
-                            .setTitleText("Failed to sync.")
-                            .setContentText(finalErrorMessage);
-                    dialog.show();
-
-                    if (callback != null) {
-                        callback.onFailure(finalErrorMessage);
-                    }
-                }
-            });
         });
     }
 

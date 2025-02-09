@@ -1,10 +1,8 @@
 package com.example.bms;
 
-import android.Manifest;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
-import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.os.Build;
@@ -14,36 +12,18 @@ import android.os.Looper;
 import android.util.Base64;
 import android.util.Log;
 import android.widget.ImageView;
-import android.widget.Toast;
 
 import androidx.activity.EdgeToEdge;
-import androidx.activity.result.ActivityResultLauncher;
-import androidx.activity.result.contract.ActivityResultContracts;
-import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
-import androidx.core.app.ActivityCompat;
-import androidx.core.graphics.Insets;
-import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
 
 import com.example.bms.data.LoginDataSource;
-import com.example.bms.data.Result;
 import com.example.bms.data.model.LoggedInUser;
 import com.example.bms.time_entry.TimeEntryRegister;
 import com.example.bms.ui.login.LoginActivity;
-import com.google.android.gms.location.FusedLocationProviderClient;
-import com.google.android.gms.location.LocationAvailability;
-import com.google.android.gms.location.LocationCallback;
-import com.google.android.gms.location.LocationRequest;
-import com.google.android.gms.location.LocationResult;
-import com.google.android.gms.location.LocationServices;
 
 import java.io.File;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Objects;
-
-import cn.pedant.SweetAlert.SweetAlertDialog;
 
 public class SplashScreen extends AppCompatActivity {
 
@@ -147,9 +127,10 @@ public class SplashScreen extends AppCompatActivity {
                     startActivity(new Intent(SplashScreen.this, GroupActivity.class));
                     finish();
                 }else{
-                    startActivity(new Intent(SplashScreen.this, TimeEntryRegister.class));
-//                    startActivity(new Intent(SplashScreen.this, MainActivity.class));
-                    finish();
+//                    startActivity(new Intent(SplashScreen.this, TimeEntryRegister.class));
+                    startActivity(new Intent(SplashScreen.this, MainActivity.class));
+//                    startActivity(new Intent(SplashScreen.this, EndpointRegistration.class));
+//                    finish();
                 }
             }
         }, 1000);

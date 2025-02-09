@@ -6,59 +6,28 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
-import android.location.Criteria;
-import android.location.Location;
-import android.location.LocationListener;
-import android.location.LocationManager;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
-import android.provider.Settings;
 import android.util.Base64;
 import android.util.Log;
-import android.view.View;
 import android.widget.Toast;
 
 import com.example.bms.data.LoginDataSource;
 import com.example.bms.data.model.LoggedInUser;
 import com.example.bms.databinding.ActivityGroupBinding;
-import com.example.bms.ui.login.LoggedInUserView;
-import com.example.bms.ui.login.LoginActivity;
 import com.example.bms.ui.login.LoginResult;
-import com.google.android.gms.location.FusedLocationProviderClient;
-import com.google.android.gms.location.LocationAvailability;
-import com.google.android.gms.location.LocationCallback;
-import com.google.android.gms.location.LocationRequest;
-import com.google.android.gms.location.LocationResult;
-import com.google.android.gms.location.LocationServices;
-import com.google.android.gms.tasks.OnSuccessListener;
-import com.google.android.material.appbar.CollapsingToolbarLayout;
 
 import androidx.activity.OnBackPressedCallback;
-import androidx.activity.result.ActivityResultLauncher;
-import androidx.activity.result.contract.ActivityResultContracts;
-import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
-import androidx.appcompat.widget.Toolbar;
 import androidx.core.app.ActivityCompat;
-import androidx.core.view.WindowInsetsCompat;
 import androidx.lifecycle.MutableLiveData;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
-import org.json.JSONArray;
-import org.json.JSONObject;
-
-import java.io.BufferedReader;
-import java.io.InputStreamReader;
-import java.net.HttpURLConnection;
-import java.net.URL;
 import java.util.Collections;
 import java.util.List;
-import java.util.Objects;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 
 import cn.pedant.SweetAlert.SweetAlertDialog;
 
@@ -147,10 +116,6 @@ public class GroupActivity extends AppCompatActivity {
                 DeviceRepository deviceRepository = new DeviceRepository(GroupActivity.this);
                 long deviceGroupId = deviceRepository.getModelGroupId(Build.MODEL);
 
-                SharedPreferences groupPrefs = getSharedPreferences("DEVICE_GROUP", Context.MODE_PRIVATE);
-                SharedPreferences.Editor editor = groupPrefs.edit();
-                editor.putString(KEY_SELECTED_GROUP, String.valueOf(selectedGroup.getId()));
-                editor.apply();
 
                 String model = Build.MODEL;
                 String serialNo;
@@ -177,13 +142,13 @@ public class GroupActivity extends AppCompatActivity {
                     serialNo = Build.SERIAL;
                 }
 
-                double latitude = Double.longBitsToDouble(sharedPreferences.getLong("latitude", Double.doubleToLongBits(0.0)));
-                double longitude = Double.longBitsToDouble(sharedPreferences.getLong("longitude", Double.doubleToLongBits(0.0)));
-
-//                deviceRepository.insertOrUpdateDevice(selectedGroup.getId(), model, serialNo, latitude, longitude, "registeredAt");
-
                 UserRepository repository = new UserRepository(GroupActivity.this);
                 repository.updateUserGroupByEmail(data.getEmail(), selectedGroup.getId());
+
+                SharedPreferences groupPrefs = getSharedPreferences("DEVICE_GROUP", Context.MODE_PRIVATE);
+                SharedPreferences.Editor editor = groupPrefs.edit();
+                editor.putString(KEY_SELECTED_GROUP, String.valueOf(selectedGroup.getId()));
+                editor.apply();
 
                 try {
                     //call syncUsers from Configuration
@@ -203,7 +168,6 @@ public class GroupActivity extends AppCompatActivity {
                             } catch (Exception e) {
                                 throw new RuntimeException(e);
                             }
-
 
                             new Handler(Looper.getMainLooper()).postDelayed(new Runnable() {
                                 @Override

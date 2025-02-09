@@ -10,9 +10,6 @@ import android.util.Log;
 import com.example.bms.DatabaseHelper;
 import com.example.bms.GroupActivity;
 
-import java.text.SimpleDateFormat;
-import java.util.Date;
-
 public class TimeRepository {
 
     private final DatabaseHelper dbHelper;

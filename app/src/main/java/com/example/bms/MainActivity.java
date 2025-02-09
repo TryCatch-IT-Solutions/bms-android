@@ -15,8 +15,6 @@ import android.os.PowerManager;
 import android.util.Base64;
 import android.util.Log;
 import android.view.View;
-import android.view.WindowInsetsController;
-import android.view.WindowManager;
 import android.widget.Button;
 import android.widget.ImageView;
 import android.widget.TextView;
@@ -33,7 +31,6 @@ import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
 
 import com.example.bms.data.LoginDataSource;
-import com.example.bms.data.LoginRepository;
 import com.example.bms.enrollment.EnrollmentList;
 import com.example.bms.time_entry.TimeEntryRegister;
 import com.google.android.gms.common.ConnectionResult;
@@ -46,7 +43,6 @@ import com.google.android.gms.location.LocationResult;
 import com.google.android.gms.location.LocationServices;
 import com.google.android.gms.location.Priority;
 
-import org.greenrobot.greendao.database.Database;
 import org.json.JSONException;
 import org.json.JSONObject;
 

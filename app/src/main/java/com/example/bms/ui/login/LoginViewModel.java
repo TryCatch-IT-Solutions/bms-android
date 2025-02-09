@@ -5,7 +5,6 @@ import androidx.lifecycle.MutableLiveData;
 import androidx.lifecycle.ViewModel;
 
 import android.content.Context;
-import android.util.Log;
 import android.util.Patterns;
 
 import com.example.bms.data.LoginRepository;
