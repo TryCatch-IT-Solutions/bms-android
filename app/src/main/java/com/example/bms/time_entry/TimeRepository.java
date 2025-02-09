@@ -2,10 +2,13 @@ package com.example.bms.time_entry;
 
 import android.content.ContentValues;
 import android.content.Context;
+import android.content.SharedPreferences;
 import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
+import android.util.Log;
 
 import com.example.bms.DatabaseHelper;
+import com.example.bms.GroupActivity;
 
 import java.text.SimpleDateFormat;
 import java.util.Date;
@@ -13,13 +16,24 @@ import java.util.Date;
 public class TimeRepository {
 
     private final DatabaseHelper dbHelper;
+    private final Context context;
 
     public TimeRepository(Context context) {
         dbHelper = new DatabaseHelper(context);
+        this.context = context;
     }
 
-    public long insertTimeEntry(long userId, String type) {
-        return insertTimeEntry(userId, type, dbHelper.getCurrentDateTime(), null, false);
+    public long insertTimeEntry(long userId, String type,String snapshot, String serialNo) {
+        return insertTimeEntry(userId, type, dbHelper.getCurrentDateTime(), null, false, snapshot, serialNo);
+    }
+
+    public void updateTimeEntrySnapshot(long id, String snapshot) {
+        SQLiteDatabase db = dbHelper.getWritableDatabase();
+        ContentValues values = new ContentValues();
+        values.put(DatabaseHelper.COLUMN_SNAPSHOT, snapshot);
+        values.put(DatabaseHelper.COLUMN_UPDATED_AT, dbHelper.getCurrentDateTime());
+        db.update(DatabaseHelper.TABLE_TIME_ENTRIES, values, DatabaseHelper.COLUMN_ID + " = ?", new String[]{String.valueOf(id)});
+        db.close();
     }
 
     public boolean hasTimeEntry(long userId, String datetime) {
@@ -31,7 +45,17 @@ public class TimeRepository {
         return hasTimeEntry;
     }
 
-    public long insertTimeEntry(long userId, String type, String datetime, String metadata, boolean isSynced) {
+    private double[] getLatAndLong() {
+        SharedPreferences sharedPreferences = this.context.getSharedPreferences(GroupActivity.PREFS_NAME, Context.MODE_PRIVATE);
+        double latitude = Double.parseDouble(sharedPreferences.getString("latitude", "0"));
+        double longitude = Double.parseDouble(sharedPreferences.getString("longitude", "0"));
+//        Log.d("Location", "Lat: " + latitude + ", Lon: " + longitude);
+        return new double[]{latitude, longitude};
+    }
+
+
+
+    public long insertTimeEntry(long userId, String type, String datetime, String metadata, boolean isSynced, String snapshot, String serialNo) {
         SQLiteDatabase db = dbHelper.getWritableDatabase();
         ContentValues values = new ContentValues();
         values.put(DatabaseHelper.COLUMN_USER_ID, userId);
@@ -41,6 +65,13 @@ public class TimeRepository {
         values.put(DatabaseHelper.COLUMN_IS_SYNCED, isSynced);
         values.put(DatabaseHelper.COLUMN_CREATED_AT, dbHelper.getCurrentDateTime());
         values.put(DatabaseHelper.COLUMN_UPDATED_AT, dbHelper.getCurrentDateTime());
+        values.put(DatabaseHelper.COLUMN_SNAPSHOT, snapshot);
+        values.put(DatabaseHelper.COLUMN_SERIAL_NO, serialNo);
+
+        double[] latLong = getLatAndLong();
+        Log.d("TimeRepository", "Lat: " + latLong[0] + ", Lon: " + latLong[1]);
+        values.put(DatabaseHelper.COLUMN_LATITUDE, latLong[0]);
+        values.put(DatabaseHelper.COLUMN_LONGITUDE, latLong[1]);
 
         long id = db.insert(DatabaseHelper.TABLE_TIME_ENTRIES, null, values);
         db.close();

@@ -74,7 +74,7 @@ public class EndpointRegistration extends AppCompatActivity {
 
     private void getApiEndpoint()  {
         SharedPreferences sharedPreferences = getSharedPreferences(Configuration.PREFS_NAME, Context.MODE_PRIVATE);
-        String apiEndpoint = sharedPreferences.getString("API_ENDPOINT", "http://115.147.32.2:9001/api");
+        String apiEndpoint = sharedPreferences.getString("API_ENDPOINT", "http://192.168.1.58:8000/api");
         TextInputEditText editTextApiEndpoint = findViewById(R.id.api_endpoint);
         editTextApiEndpoint.setText(apiEndpoint);
         Log.d("Configuration", "API Endpoint: " + apiEndpoint);
@@ -189,10 +189,13 @@ public class EndpointRegistration extends AppCompatActivity {
 
         if(access.equals("online")){
             ExecutorService executor = Executors.newSingleThreadExecutor();
+            executor.execute(() -> ((App)getApplication()).getSimilarDevices());
             executor.execute(this::syncGroups);
         }
 
     }
+
+
 
     private void saveApiToken() {
         TextInputEditText editTextApiEndpoint = findViewById(R.id.api_token);

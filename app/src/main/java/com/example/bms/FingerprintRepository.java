@@ -55,7 +55,7 @@ public class FingerprintRepository {
         }
 
         cursor.close();
-        db.close();
+//        db.close();
     }
 
     public List<Fingerprint> getFingerprintsByGroupId(long groupId) {

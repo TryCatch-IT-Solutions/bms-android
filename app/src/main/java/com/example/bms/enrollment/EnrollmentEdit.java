@@ -76,6 +76,7 @@ import java.util.Arrays;
 import java.util.Calendar;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Objects;
 
 import cn.pedant.SweetAlert.SweetAlertDialog;
 
@@ -223,6 +224,8 @@ public class EnrollmentEdit extends AppCompatActivity {
 
         binding = ActivityEnrollmentEditBinding.inflate(getLayoutInflater());
         setContentView(binding.getRoot());
+
+        Objects.requireNonNull(getWindow().getInsetsController()).hide(WindowInsetsCompat.Type.systemBars());
 
         dbHelper = new DatabaseHelper(this);
 

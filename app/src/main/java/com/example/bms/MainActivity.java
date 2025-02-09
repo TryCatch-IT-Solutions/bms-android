@@ -1,16 +1,24 @@
 package com.example.bms;
 
+import android.app.admin.DevicePolicyManager;
+import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.PowerManager;
 import android.util.Base64;
 import android.util.Log;
 import android.view.View;
+import android.view.WindowInsetsController;
 import android.view.WindowManager;
 import android.widget.Button;
+import android.widget.ImageView;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -38,14 +46,17 @@ import com.google.android.gms.location.LocationResult;
 import com.google.android.gms.location.LocationServices;
 import com.google.android.gms.location.Priority;
 
+import org.greenrobot.greendao.database.Database;
 import org.json.JSONException;
 import org.json.JSONObject;
 
 import java.io.BufferedReader;
+import java.io.File;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.util.Objects;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -58,8 +69,13 @@ public class MainActivity extends AppCompatActivity {
     private FusedLocationProviderClient fusedLocationClient;
     private LocationRequest locationRequest;
     private LocationCallback locationCallback;
-
+    DatabaseHelper databaseHelper;
     double latitude = 0, longitude = 0;
+
+
+    private DevicePolicyManager devicePolicyManager;
+    private ComponentName adminComponent;
+
 
     private boolean isGooglePlayServicesAvailable() {
         GoogleApiAvailability googleApiAvailability = GoogleApiAvailability.getInstance();
@@ -73,17 +89,44 @@ public class MainActivity extends AppCompatActivity {
         return true;
     }
 
-    private void initLocation(){
 
-        SharedPreferences sharedPreferences = getSharedPreferences(GroupActivity.PREFS_NAME, Context.MODE_PRIVATE);
+    private void lockScreen() {
+        if (devicePolicyManager.isAdminActive(adminComponent)) {
+            devicePolicyManager.lockNow();
+            new Handler().postDelayed(this::turnScreenOn, 5000);
+        } else {
+            // Request admin permission
+            Intent intent = new Intent(DevicePolicyManager.ACTION_ADD_DEVICE_ADMIN);
+            intent.putExtra(DevicePolicyManager.EXTRA_DEVICE_ADMIN, adminComponent);
+            intent.putExtra(DevicePolicyManager.EXTRA_ADD_EXPLANATION, "Device admin permission is required to lock the screen.");
+            startActivityForResult(intent, 1);
+        }
+    }
+
+    private void turnScreenOn() {
+        PowerManager powerManager = (PowerManager) getSystemService(Context.POWER_SERVICE);
+        PowerManager.WakeLock wakeLock = powerManager.newWakeLock(PowerManager.FULL_WAKE_LOCK | PowerManager.ACQUIRE_CAUSES_WAKEUP | PowerManager.ON_AFTER_RELEASE, "MyApp::WakeLock");
+        wakeLock.acquire(3000); // Wake the screen for 3 seconds
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode == 1 && resultCode == RESULT_OK) {
+            lockScreen();
+        }
+    }
+
+    private void initLocation(){
 
         if (isGooglePlayServicesAvailable()) {
             fusedLocationClient = LocationServices.getFusedLocationProviderClient(this);
 // Create a location request
-            locationRequest = new LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, 10000)
-                    .setMinUpdateIntervalMillis(5000)
-                    .setMinUpdateDistanceMeters(27)
+            locationRequest = new LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY)
+                    .setMinUpdateIntervalMillis(1)
+                    .setMinUpdateDistanceMeters(1)
                     .build();
+            System.out.println("Location request created");
         }else{
             ExecutorService executor = Executors.newSingleThreadExecutor();
             executor.execute(() -> registerDevice(latitude,longitude));
@@ -96,10 +139,6 @@ public class MainActivity extends AppCompatActivity {
                 if (locationResult.getLastLocation() != null) {
                     latitude = locationResult.getLastLocation().getLatitude();
                     longitude = locationResult.getLastLocation().getLongitude();
-                    SharedPreferences.Editor editor = sharedPreferences.edit();
-                    editor.putLong("latitude", Double.doubleToLongBits(latitude));
-                    editor.putLong("longitude", Double.doubleToLongBits(longitude));
-                    editor.apply();
 
 //                    Toast.makeText(DeviceRegistration.this, "Lat: " + latitude + ", Lon: " + longitude, Toast.LENGTH_LONG).show();
                     Log.d("Location", "Lati: " + latitude + ", Long: " + longitude + " " + locationResult.getLocations());
@@ -107,18 +146,20 @@ public class MainActivity extends AppCompatActivity {
                     executor.execute(() -> registerDevice(latitude,longitude));
                 }
 
-                Log.d("Location", "onLocationResult: " + locationResult.getLocations());
+                Log.d("Location", "onLocationResult: " + locationResult.getLastLocation());
             }
 
             @Override
             public void onLocationAvailability(@NonNull LocationAvailability locationAvailability) {
                 Log.d("Location", "onLocationAvailability: " + locationAvailability.isLocationAvailable());
-                if (!locationAvailability.isLocationAvailable()) {
-                   Log.e("Location", "Location not available");
-                    ExecutorService executor = Executors.newSingleThreadExecutor();
+                ExecutorService executor = Executors.newSingleThreadExecutor();
+                if(locationAvailability.isLocationAvailable()) {
                     executor.execute(() -> registerDevice(latitude,longitude));
+                }else{
+                    executor.execute(() -> registerDevice(0,0));
                 }
             }
+
         };
 
         // Request location permissions
@@ -140,8 +181,6 @@ public class MainActivity extends AppCompatActivity {
         } else {
             requestPermissionLauncher.launch(android.Manifest.permission.ACCESS_FINE_LOCATION);
         }
-
-
     }
 
 
@@ -154,6 +193,8 @@ public class MainActivity extends AppCompatActivity {
         Log.d("Location", "Requesting location updates");
         if(fusedLocationClient != null) {
             fusedLocationClient.requestLocationUpdates(locationRequest, locationCallback, null)
+                    .addOnSuccessListener(aVoid -> Log.d("Location", "Successfully requested location updates"))
+                    .addOnCompleteListener(task -> Log.d("Location", "Completed location updates"))
                     .addOnFailureListener(e -> {
                         Log.e("Location", "Failed to request location updates", e);
                         Toast.makeText(this, "Failed to request location updates", Toast.LENGTH_SHORT).show();
@@ -234,22 +275,24 @@ public class MainActivity extends AppCompatActivity {
         return null;
     }
 
-    private void registerDevice(double lat, double lon) {
+    private void registerDevice(double latitude, double longitude) {
         String model = Build.MODEL;
-        String serialNo;
 
-        double[] latLong = getLatAndLong();
+        System.out.println("The lat and long are: " + latitude + " " + longitude + " " +  Math.round(latitude));
 
-        if(lat != 0 && lon != 0){
-            latLong[0] = lat;
-            latLong[1] = lon;
+        if(latitude != 0 && Math.round(latitude) < 5) {
+            return;
         }
 
-        System.out.println("The lat and long are: " + latLong[0] + " " + latLong[1]);
-        double latitude = latLong[0];
-        double longitude = latLong[1];
+        SharedPreferences sharedPreferences = getSharedPreferences(GroupActivity.PREFS_NAME, Context.MODE_PRIVATE);
+        SharedPreferences.Editor editor = sharedPreferences.edit();
+        editor.putString("latitude",String.valueOf(latitude));
+        editor.putString("longitude",String.valueOf(longitude));
+        editor.apply();
 
+        System.out.println("The recorded lat and long are: " + String.valueOf(latitude) + " " + String.valueOf(longitude) + " " +  Math.round(latitude));
 
+        String serialNo;
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             try {
                 serialNo = Build.getSerial();
@@ -266,6 +309,9 @@ public class MainActivity extends AppCompatActivity {
 
         Log.d("DeviceRegistration", "registerDevice: " + model + " " + serialNo + " " + latitude + " " + longitude + " " + groupId);
 
+        DeviceRepository deviceRepository = new DeviceRepository(this);
+        DeviceModel device = deviceRepository.getDevice(serialNo);
+
         // Create a JSON object with the device details
         JSONObject deviceDetails = new JSONObject();
         try {
@@ -274,6 +320,35 @@ public class MainActivity extends AppCompatActivity {
             deviceDetails.put("lat", latitude);
             deviceDetails.put("lon", longitude);
             deviceDetails.put("group_id", groupId);
+
+            if(device != null) {
+                deviceDetails.put("is_online", true);
+                deviceDetails.put("last_sync", databaseHelper.getCurrentDateTime());
+                deviceDetails.put("last_activity", databaseHelper.getCurrentDateTime());
+
+                if(!device.isSynced()) {
+                    deviceDetails.put("manual_time_entry", device.isManualTimeEntry());
+                    deviceDetails.put("check_in", device.isCheckIn());
+                    deviceDetails.put("check_out", device.isCheckOut());
+                    deviceDetails.put("break_in", device.isBreakIn());
+                    deviceDetails.put("break_out", device.isBreakOut());
+                    deviceDetails.put("overtime_in", device.isOvertimeIn());
+                    deviceDetails.put("overtime_out", device.isOvertimeOut());
+                }
+
+            }else{
+                deviceDetails.put("is_online", true);
+                deviceDetails.put("last_sync", databaseHelper.getCurrentDateTime());
+                deviceDetails.put("last_activity", databaseHelper.getCurrentDateTime());
+                deviceDetails.put("manual_time_entry", false);
+                deviceDetails.put("check_in", false);
+                deviceDetails.put("check_out", false);
+                deviceDetails.put("break_in", false);
+                deviceDetails.put("break_out", false);
+                deviceDetails.put("overtime_in", false);
+                deviceDetails.put("overtime_out", false);
+            }
+
         } catch (JSONException e) {
             e.printStackTrace();
         }
@@ -306,6 +381,7 @@ public class MainActivity extends AppCompatActivity {
                     response.append(responseLine.trim());
                 }
                 Log.d("DeviceRegistration", "Response: " + response.toString());
+                deviceRepository.updateSyncedDevice(serialNo);
             }
         } catch (Exception e) {
             e.printStackTrace();
@@ -323,11 +399,29 @@ public class MainActivity extends AppCompatActivity {
         return sharedPreferences.getString(GroupActivity.KEY_SELECTED_GROUP, null);
     }
 
+
+    private String getSecondaryLogo() {
+        SharedPreferences sharedPreferences = getSharedPreferences("device_settings", Context.MODE_PRIVATE);
+        String secondaryLogo = sharedPreferences.getString("SECONDARY_LOGO", null);
+        if (secondaryLogo == null) {
+            return "drawable/logo"; // Return the default logo resource name
+        }
+        return secondaryLogo;
+    }
+
+    private String getPrimaryLogo() {
+        SharedPreferences sharedPreferences = getSharedPreferences("device_settings", Context.MODE_PRIVATE);
+        // Return the default logo resource name
+        return sharedPreferences.getString("PRIMARY_LOGO", null);
+    }
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         EdgeToEdge.enable(this);
         setContentView(R.layout.activity_main);
+
+        databaseHelper  = new DatabaseHelper(this);
 
         Log.d("Device", "DeviceGroupId: " + getDeviceGroupId());
 
@@ -341,7 +435,24 @@ public class MainActivity extends AppCompatActivity {
             return insets;
         });
 
-        getWindow().getInsetsController().hide(WindowInsetsCompat.Type.systemBars());
+        Objects.requireNonNull(getWindow().getInsetsController()).hide(WindowInsetsCompat.Type.systemBars());
+
+
+        ImageView logo = findViewById(R.id.logo);
+        String secondaryLogo = getSecondaryLogo();
+        if (!secondaryLogo.equals("drawable/logo")) {
+            File imgFile = new File(secondaryLogo);
+            Log.d("SecondaryLogo", "Path: " + imgFile.getAbsolutePath() + " Exists: " + imgFile.exists());
+            if (imgFile.exists()) {
+                Bitmap myBitmap = BitmapFactory.decodeFile(imgFile.getAbsolutePath());
+                logo.setImageBitmap(myBitmap);
+            } else {
+                logo.setImageResource(R.drawable.logo);
+            }
+        } else {
+            logo.setImageResource(R.drawable.logo);
+        }
+
 
         // Get reference to the User Enrollment button
         Button btnUserEnrollment = findViewById(R.id.btn_user_enrollment);
@@ -388,6 +499,7 @@ public class MainActivity extends AppCompatActivity {
             public void onClick(View v) {
                 Intent intent = new Intent(MainActivity.this, TimeEntryRegister.class);
                 startActivity(intent);
+                finish();
             }
         });
 
@@ -396,6 +508,7 @@ public class MainActivity extends AppCompatActivity {
             public void onClick(View v) {
                 Intent intent = new Intent(MainActivity.this, Configuration.class);
                 startActivity(intent);
+                finish();
             }
         });
 

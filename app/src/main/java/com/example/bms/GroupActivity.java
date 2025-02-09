@@ -24,6 +24,7 @@ import com.example.bms.data.LoginDataSource;
 import com.example.bms.data.model.LoggedInUser;
 import com.example.bms.databinding.ActivityGroupBinding;
 import com.example.bms.ui.login.LoggedInUserView;
+import com.example.bms.ui.login.LoginActivity;
 import com.example.bms.ui.login.LoginResult;
 import com.google.android.gms.location.FusedLocationProviderClient;
 import com.google.android.gms.location.LocationAvailability;
@@ -41,6 +42,7 @@ import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.Toolbar;
 import androidx.core.app.ActivityCompat;
+import androidx.core.view.WindowInsetsCompat;
 import androidx.lifecycle.MutableLiveData;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
@@ -54,6 +56,7 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -79,6 +82,7 @@ public class GroupActivity extends AppCompatActivity {
         binding = ActivityGroupBinding.inflate(getLayoutInflater());
         setContentView(binding.getRoot());
 
+//        Objects.requireNonNull(getWindow().getInsetsController()).hide(WindowInsetsCompat.Type.systemBars());
 
         getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
             @Override
@@ -139,6 +143,10 @@ public class GroupActivity extends AppCompatActivity {
 
             Group selectedGroup = adapter.getSelectedGroup();
             if (selectedGroup != null) {
+
+                DeviceRepository deviceRepository = new DeviceRepository(GroupActivity.this);
+                long deviceGroupId = deviceRepository.getModelGroupId(Build.MODEL);
+
                 SharedPreferences groupPrefs = getSharedPreferences("DEVICE_GROUP", Context.MODE_PRIVATE);
                 SharedPreferences.Editor editor = groupPrefs.edit();
                 editor.putString(KEY_SELECTED_GROUP, String.valueOf(selectedGroup.getId()));
@@ -146,6 +154,17 @@ public class GroupActivity extends AppCompatActivity {
 
                 String model = Build.MODEL;
                 String serialNo;
+
+                if(deviceGroupId != -1 && deviceGroupId != selectedGroup.getId()) {
+                    new SweetAlertDialog(this, SweetAlertDialog.ERROR_TYPE)
+                            .setTitleText("Device Group Mismatch")
+                            .setContentText("Device group does not match the pre-selected group for this model")
+                            .setConfirmText("OK")
+                            .setConfirmClickListener(SweetAlertDialog::dismissWithAnimation)
+                            .show();
+                    return;
+                }
+
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                     try {
                         serialNo = Build.getSerial();
@@ -161,15 +180,14 @@ public class GroupActivity extends AppCompatActivity {
                 double latitude = Double.longBitsToDouble(sharedPreferences.getLong("latitude", Double.doubleToLongBits(0.0)));
                 double longitude = Double.longBitsToDouble(sharedPreferences.getLong("longitude", Double.doubleToLongBits(0.0)));
 
-                deviceRepository.insertOrUpdateDevice(selectedGroup.getId(), model, serialNo, latitude, longitude, "registeredAt");
+//                deviceRepository.insertOrUpdateDevice(selectedGroup.getId(), model, serialNo, latitude, longitude, "registeredAt");
 
                 UserRepository repository = new UserRepository(GroupActivity.this);
                 repository.updateUserGroupByEmail(data.getEmail(), selectedGroup.getId());
 
-
                 try {
                     //call syncUsers from Configuration
-                    ((App)getApplication()).syncUsers(GroupActivity.this, new App.SyncCallback() {
+                    ((App)getApplication()).syncUsersOnLogout(GroupActivity.this, new App.SyncCallback() {
                         @Override
                         public void onSuccess() {
                             try {

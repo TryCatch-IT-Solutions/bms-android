@@ -1,17 +1,31 @@
 package com.example.bms;
 
+import android.Manifest;
 import android.annotation.SuppressLint;
 import android.app.Application;
 import android.content.ContentValues;
 import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.SharedPreferences;
+import android.content.pm.PackageManager;
 import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
+import android.os.BatteryManager;
+import android.os.Build;
+import android.os.Environment;
 import android.os.Handler;
 import android.os.Looper;
 import android.util.Base64;
 import android.util.Log;
+import android.widget.Toast;
+
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.contract.ActivityResultContracts;
+import androidx.annotation.NonNull;
+import androidx.core.app.ActivityCompat;
 
 import com.example.bms.data.LoginDataSource;
 import com.example.bms.data.model.LoggedInUser;
@@ -19,6 +33,15 @@ import com.example.bms.data.model.User;
 import com.example.bms.time_entry.TimeRepository;
 import com.example.bms.ui.login.LoginActivity;
 import com.github.yuweiguocn.library.greendao.MigrationHelper;
+import com.google.android.gms.common.ConnectionResult;
+import com.google.android.gms.common.GoogleApiAvailability;
+import com.google.android.gms.location.FusedLocationProviderClient;
+import com.google.android.gms.location.LocationAvailability;
+import com.google.android.gms.location.LocationCallback;
+import com.google.android.gms.location.LocationRequest;
+import com.google.android.gms.location.LocationResult;
+import com.google.android.gms.location.LocationServices;
+import com.google.android.gms.location.Priority;
 import com.google.android.material.textfield.TextInputEditText;
 
 import cn.pedant.SweetAlert.SweetAlertDialog;
@@ -26,21 +49,30 @@ import facex.greendao.gen.DaoMaster;
 import facex.greendao.gen.DaoSession;
 import facex.greendao.gen.UserDao;
 
+import org.apache.commons.logging.LogFactory;
 import org.greenrobot.greendao.database.Database;
 import org.json.JSONArray;
+import org.json.JSONException;
 import org.json.JSONObject;
 
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
+import java.io.DataOutputStream;
 import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.net.URLConnection;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -62,6 +94,93 @@ public class App extends Application {
     private Handler handler;
     private Runnable runnable;
 
+    private ActivityResultLauncher<String> requestPermissionLauncher;
+    private FusedLocationProviderClient fusedLocationClient;
+    private LocationRequest locationRequest;
+    private LocationCallback locationCallback;
+
+    double latitude = 0, longitude = 0;
+
+//    private BatteryLevelReceiver batteryLevelReceiver;
+
+    private boolean isGooglePlayServicesAvailable() {
+        GoogleApiAvailability googleApiAvailability = GoogleApiAvailability.getInstance();
+        int status = googleApiAvailability.isGooglePlayServicesAvailable(this);
+        if (status != ConnectionResult.SUCCESS) {
+            if (googleApiAvailability.isUserResolvableError(status)) {
+//                googleApiAvailability.getErrorDialog(this, status, 2404).show();
+                Log.e("Location", "Google Play Services not available");
+            }
+            return false;
+        }
+        return true;
+    }
+
+    private void initLocation(){
+
+        if (isGooglePlayServicesAvailable()) {
+            fusedLocationClient = LocationServices.getFusedLocationProviderClient(this);
+// Create a location request
+            locationRequest = new LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY)
+//                    .setMinUpdateIntervalMillis(1)
+//                    .setMinUpdateDistanceMeters(1)
+                    .build();
+            System.out.println("Location request created");
+        }else{
+            ExecutorService executor = Executors.newSingleThreadExecutor();
+            executor.execute(this::syncMyDevice);
+        }
+
+        // Define the location callback
+        locationCallback = new LocationCallback() {
+            @Override
+            public void onLocationResult(@NonNull LocationResult locationResult) {
+                if (locationResult.getLastLocation() != null) {
+                    latitude = locationResult.getLastLocation().getLatitude();
+                    longitude = locationResult.getLastLocation().getLongitude();
+
+                    SharedPreferences sharedPreferences = getSharedPreferences(GroupActivity.PREFS_NAME, Context.MODE_PRIVATE);
+                    SharedPreferences.Editor editor = sharedPreferences.edit();
+                    editor.putString("latitude",String.valueOf(latitude));
+                    editor.putString("longitude",String.valueOf(longitude));
+                    editor.apply();
+
+                    ExecutorService executor = Executors.newSingleThreadExecutor();
+                    executor.execute(() -> syncMyDevice());
+                }
+
+                Log.d("AppLocation", "onLocationResult: " + locationResult.getLastLocation());
+            }
+
+            @Override
+            public void onLocationAvailability(@NonNull LocationAvailability locationAvailability) {
+                Log.d("AppLocation", "onLocationAvailability: " + locationAvailability.isLocationAvailable());
+                ExecutorService executor = Executors.newSingleThreadExecutor();
+                executor.execute(() -> syncMyDevice());
+            }
+
+        };
+
+        startLocationUpdates();
+    }
+
+    private void startLocationUpdates() {
+        if (ActivityCompat.checkSelfPermission(this, android.Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED
+                && ActivityCompat.checkSelfPermission(this, android.Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+            return;
+        }
+
+        Log.d("AppLocation", "Requesting location updates");
+        if(fusedLocationClient != null) {
+            fusedLocationClient.requestLocationUpdates(locationRequest, locationCallback, null)
+                    .addOnSuccessListener(aVoid -> Log.d("Location", "Successfully requested location updates"))
+                    .addOnCompleteListener(task -> Log.d("Location", "Completed location updates"))
+                    .addOnFailureListener(e -> {
+                        Log.e("AppLocation", "Failed to request location updates", e);
+                        Toast.makeText(this, "Failed to request location updates", Toast.LENGTH_SHORT).show();
+                    });
+        }
+    }
 
     @Override
     public void onTerminate() {
@@ -78,51 +197,561 @@ public class App extends Application {
         Log.d("Configuration", "API Endpoint: " + apiEndpoint);
     }
 
+    private long getSnapshotRetention() {
+        SharedPreferences sharedPreferences = getSharedPreferences("device_settings", Context.MODE_PRIVATE);
+        String snapshotRetention = sharedPreferences.getString("SNAPSHOT_RETENTION", "43000");
+        return Long.parseLong(snapshotRetention);
+    }
+
+    private String getStraingerDetection() {
+        SharedPreferences sharedPreferences = getSharedPreferences("device_settings", Context.MODE_PRIVATE);
+        String strangerDetection = sharedPreferences.getString("STRANGER_DETECTION", "on");
+        return strangerDetection;
+    }
+
+    private long getDeviceSyncInterval() {
+        SharedPreferences sharedPreferences = getSharedPreferences("device_settings", Context.MODE_PRIVATE);
+        String syncInterval = sharedPreferences.getString("DEVICE_SYNC_INTERVAL", "60000");
+        return Long.parseLong(syncInterval);
+    }
+
+
     @Override
     public void onCreate() {
         super.onCreate();
 
         getApiEndpoint();
 
+//        batteryLevelReceiver = new BatteryLevelReceiver();
+//        IntentFilter filter = new IntentFilter(Intent.ACTION_BATTERY_CHANGED);
+//        registerReceiver(batteryLevelReceiver, filter);
+
         dbHelper = new DatabaseHelper(this);
         // Open the database connection
         dbHelper.getWritableDatabase();
 
-        daoSession = getDaoSession();
+//        daoSession = getDaoSession();
 
         Log.d("Device", "DeviceGroupId Here: " + getDeviceGroupId());
 
         String access = getAccess();
+
+        handler = new Handler(Looper.getMainLooper());
+
+        long snapshotRetention = getSnapshotRetention();
+
+        Log.d("SnapshotRetention", "Snapshot Retention: " + snapshotRetention);
+
+
+        Runnable cleanupTask = new Runnable() {
+            @Override
+            public void run() {
+                FileCleanupUtil fileCleanupUtil = new FileCleanupUtil();
+                fileCleanupUtil.deleteOldFiles(snapshotRetention);
+
+                //every 30minutes
+                handler.postDelayed(this, 1800000);
+            }
+        };
+        handler.post(cleanupTask);
+
         if(access.equals("online")) {
             // Initialize the handler and runnable
-            handler = new Handler(Looper.getMainLooper());
             runnable = new Runnable() {
                 @Override
                 public void run() {
                     // Call the getTimeEntries method
-                    getTimeEntries();
-                    getAnnouncements();
 
                     ExecutorService executor = Executors.newSingleThreadExecutor();
+                    executor.execute(()-> getSimilarDevices());
                     executor.execute(()-> syncUsersFromWeb());
-                    // Schedule the runnable to run again after 1 minute (60000 milliseconds)
-                    handler.postDelayed(this, 60000);
+                    executor.execute(()-> getTimeEntries());
+                    executor.execute(()-> getAnnouncements());
+                    executor.execute(() -> syncMyDevice());
+
+                    getDeviceSettings();
+
+                    handler.postDelayed(this, getDeviceSyncInterval());
                 }
             };
 
             // Start the initial runnable task by posting it to the handler
             handler.post(runnable);
+
+            initLocation();
+        }
+    }
+
+    private String getDeviceModel(){
+        return android.os.Build.MODEL;
+    }
+
+    private boolean intToBoolean(int intValue) {
+        return intValue == 1;
+    }
+
+
+    private boolean isValidImageUrl(String urlString) {
+        try {
+            URL url = new URL(urlString);
+            HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+            connection.setRequestMethod("HEAD");
+            int responseCode = connection.getResponseCode();
+            String contentType = connection.getContentType();
+            return (responseCode == HttpURLConnection.HTTP_OK && contentType.startsWith("image/"));
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    private String saveImage(String urlString, String fileName) {
+        try {
+            URL url = new URL(urlString);
+            HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+            connection.setDoInput(true);
+            connection.connect();
+            InputStream input = connection.getInputStream();
+            Bitmap bitmap = BitmapFactory.decodeStream(input);
+            File file = new File(getFilesDir(), fileName);
+            FileOutputStream outputStream = new FileOutputStream(file);
+            bitmap.compress(Bitmap.CompressFormat.PNG, 100, outputStream);
+            outputStream.close();
+
+            return file.getAbsolutePath();
+        } catch (IOException e) {
+            e.printStackTrace();
+            return null;
+        }
+    }
+
+    private void getDeviceSettings() {
+        ExecutorService executor = Executors.newSingleThreadExecutor();
+        Handler handler = new Handler(Looper.getMainLooper());
+
+        executor.execute(() -> {
+            try {
+                URL url = new URL(App.BASE_URL + "/sync/settings");
+                HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+                conn.setRequestMethod("GET");
+                conn.setRequestProperty("Accept", "application/json");
+                conn.setRequestProperty("Authorization", "Bearer " + App.TOKEN);
+
+                int responseCode = conn.getResponseCode();
+                if (responseCode == HttpURLConnection.HTTP_OK) {
+                    BufferedReader br = new BufferedReader(new InputStreamReader(conn.getInputStream(), "utf-8"));
+                    StringBuilder response = new StringBuilder();
+                    String line;
+                    while ((line = br.readLine()) != null) {
+                        response.append(line);
+                    }
+                    br.close();
+
+                    JSONObject jsonResponse = new JSONObject(response.toString());
+                    String appToken = jsonResponse.getString("APP_TOKEN");
+                    String fingerprintScoreThreshold = jsonResponse.getString("FINGERPRINT_SCORE_THRESHOLD");
+                    String primaryLogo = jsonResponse.getString("PRIMARY_LOGO");
+                    String secondaryLogo = jsonResponse.getString("SECONDARY_LOGO");
+                    String snapshotRetention = jsonResponse.getString("SNAPSHOT_RETENTION");
+                    String strangerDetection = jsonResponse.getString("STRANGER_DETECTION");
+                    String screenTimeout = jsonResponse.getString("SCREEN_TIMEOUT");
+                    String syncInterval = jsonResponse.getString("DEVICE_SYNC_INTERVAL");
+
+                    String primaryLogoPath = null, secondaryLogoPath = null;
+
+                    SharedPreferences sharedPreferences = getSharedPreferences("device_settings", Context.MODE_PRIVATE);
+                    String previousPrimaryLogoUrl = sharedPreferences.getString("PRIMARY_LOGO_URL", null);
+                    String previousSecondaryLogoUrl = sharedPreferences.getString("SECONDARY_LOGO_URL", null);
+
+                    // Save the logos if they are valid image URLs and have changed
+                    if (isValidImageUrl(primaryLogo) && !primaryLogo.equals(previousPrimaryLogoUrl)) {
+                        primaryLogoPath = saveImage(primaryLogo, "primary_logo.png");
+                    } else {
+                        primaryLogoPath = sharedPreferences.getString("PRIMARY_LOGO", null);
+                    }
+
+                    //check if primaryLogo is null
+                    if (primaryLogo.equals("null")) {
+                        primaryLogoPath = null;
+                    }
+
+                    if (isValidImageUrl(secondaryLogo) && !secondaryLogo.equals(previousSecondaryLogoUrl)) {
+                        secondaryLogoPath = saveImage(secondaryLogo, "secondary_logo.png");
+                    } else {
+                        secondaryLogoPath = sharedPreferences.getString("SECONDARY_LOGO", null);
+                    }
+
+                    if(secondaryLogo.equals("null")){
+                        secondaryLogoPath = null;
+                    }
+
+                    Log.d("DeviceSettings", "App Token: " + appToken + ", Fingerprint Score Threshold: " + fingerprintScoreThreshold + ", Primary Logo: " + primaryLogo + ", Secondary Logo: " + secondaryLogo + ", Snapshot Retention: " + snapshotRetention + ", Stranger Detection: " + strangerDetection);
+
+                    // Store the settings in SharedPreferences
+                    SharedPreferences.Editor editor = sharedPreferences.edit();
+                    editor.putString("APP_TOKEN", appToken);
+                    editor.putString("FINGERPRINT_SCORE_THRESHOLD", fingerprintScoreThreshold);
+                    editor.putString("PRIMARY_LOGO", primaryLogoPath);
+                    editor.putString("PRIMARY_LOGO_URL", primaryLogo);
+                    editor.putString("SECONDARY_LOGO", secondaryLogoPath);
+                    editor.putString("SECONDARY_LOGO_URL", secondaryLogo);
+                    editor.putString("SNAPSHOT_RETENTION", snapshotRetention);
+                    editor.putString("STRANGER_DETECTION", strangerDetection);
+                    editor.putString("SCREEN_TIMEOUT", screenTimeout);
+                    editor.putString("DEVICE_SYNC_INTERVAL", syncInterval);
+                    editor.apply();
+
+                    handler.post(() -> {
+//                        Toast.makeText(this, "Device settings updated", Toast.LENGTH_SHORT).show();
+                        Log.d("App", "Device settings updated");
+                    });
+                } else {
+                    handler.post(() -> {
+//                        Toast.makeText(this, "Failed to fetch device settings", Toast.LENGTH_SHORT).show();
+                        Log.e("App", "Failed to fetch device settings");
+                    });
+                }
+                conn.disconnect();
+            } catch (Exception e) {
+                handler.post(() -> {
+                    Toast.makeText(this, "Error: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+                });
+                e.printStackTrace();
+            }
+        });
+    }
+
+    private String getUserGroupId() {
+        try {
+            SharedPreferences sharedPreferences = getSharedPreferences("user_prefs", Context.MODE_PRIVATE);
+            String encryptedData = sharedPreferences.getString("user_data", null);
+            if (encryptedData != null) {
+                byte[] decodedData = Base64.decode(encryptedData, Base64.DEFAULT);
+                String decryptedData = EncryptionUtil.decrypt(decodedData);
+                String[] userData = decryptedData.split(",");
+                return userData[3];
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return null;
+    }
+
+
+    private int getDeviceBattery() {
+        BatteryManager batteryManager = (BatteryManager) getSystemService(Context.BATTERY_SERVICE);
+        if (batteryManager != null) {
+            return batteryManager.getIntProperty(BatteryManager.BATTERY_PROPERTY_CAPACITY);
+        }
+        return -1; // Return -1 if the battery level cannot be retrieved
+    }
+
+    private String getPrimaryLogo() {
+        SharedPreferences sharedPreferences = getSharedPreferences("device_settings", Context.MODE_PRIVATE);
+        // Return the default logo resource name
+        return sharedPreferences.getString("PRIMARY_LOGO", null);
+    }
+
+    private String getSecondaryLogo() {
+        SharedPreferences sharedPreferences = getSharedPreferences("device_settings", Context.MODE_PRIVATE);
+        // Return the default logo resource name
+        return sharedPreferences.getString("SECONDARY_LOGO", null);
+    }
+
+    private void uploadImage(String key, File imageFile) {
+        ExecutorService executor = Executors.newSingleThreadExecutor();
+        Handler handler = new Handler(Looper.getMainLooper());
+
+        executor.execute(() -> {
+            try {
+                URL url = new URL(App.BASE_URL + "/settings");
+                HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+                conn.setRequestMethod("POST");
+                conn.setRequestProperty("Content-Type", "multipart/form-data; boundary=*****");
+                conn.setRequestProperty("Authorization", "Bearer " + getToken(this));
+                conn.setDoOutput(true);
+
+                DataOutputStream dos = new DataOutputStream(conn.getOutputStream());
+                dos.writeBytes("--*****\r\n");
+                dos.writeBytes("Content-Disposition: form-data; name=\"key\"\r\n");
+                dos.writeBytes("\r\n");
+                dos.writeBytes(key + "\r\n");
+                dos.writeBytes("--*****\r\n");
+                dos.writeBytes("Content-Disposition: form-data; name=\"value\"; filename=\"" + imageFile.getName() + "\"\r\n");
+                dos.writeBytes("\r\n");
+
+                FileInputStream fis = new FileInputStream(imageFile);
+                byte[] buffer = new byte[4096];
+                int bytesRead;
+                while ((bytesRead = fis.read(buffer)) != -1) {
+                    dos.write(buffer, 0, bytesRead);
+                }
+                fis.close();
+
+                dos.writeBytes("\r\n");
+                dos.writeBytes("--*****--\r\n");
+                dos.flush();
+                dos.close();
+
+                int responseCode = conn.getResponseCode();
+                if (responseCode == HttpURLConnection.HTTP_OK) {
+                    handler.post(() -> {
+//                        Toast.makeText(App.this, "Image uploaded successfully", Toast.LENGTH_SHORT).show()
+                    });
+                } else {
+                    handler.post(() -> Toast.makeText(App.this, "Failed to upload image", Toast.LENGTH_SHORT).show());
+                }
+            } catch (Exception e) {
+                handler.post(() -> Toast.makeText(App.this, "Error: " + e.getMessage(), Toast.LENGTH_SHORT).show());
+                e.printStackTrace();
+            }
+        });
+    }
+
+    public void syncMyDevice() {
+
+        if(getAccess().equals("offline")) {
+            return;
+        }
+
+        Log.d("DeviceRegistration", "Device Battery: " + getDeviceBattery());
+
+        ExecutorService executor = Executors.newSingleThreadExecutor();
+
+        executor.execute(() -> {
+
+            String model = Build.MODEL;
+
+            String serialNo;
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                try {
+                    serialNo = Build.getSerial();
+                } catch (SecurityException e) {
+                    serialNo = Build.SERIAL;
+//                        serialNo = "Permission not granted";
+                }
+            } else {
+                serialNo = Build.SERIAL;
+            }
+
+            String groupId = getUserGroupId();
+
+            DeviceRepository deviceRepository = new DeviceRepository(this);
+            DeviceModel device = deviceRepository.getDevice(serialNo);
+
+//            if(device != null && device.isSynced()) {
+//                return;
+//            }
+
+            // Create a JSON object with the device details
+            JSONObject deviceDetails = new JSONObject();
+            try {
+                double[] latLong = getLatAndLong();
+
+                deviceDetails.put("model", model);
+                deviceDetails.put("serial_no", serialNo);
+                deviceDetails.put("group_id", groupId);
+
+                deviceDetails.put("lat", latLong[0]);
+                deviceDetails.put("lon", latLong[1]);
+
+                JSONObject metadata = new JSONObject();
+                metadata.put("battery", getDeviceBattery());
+                deviceDetails.put("metadata", metadata);
+
+                Log.d("DeviceRegistration", "Lat: " + latLong[0] + ", Lon: " + latLong[1]);
+
+                deviceDetails.put("is_online", true);
+                deviceDetails.put("last_sync", dbHelper.getCurrentDateTime());
+                deviceDetails.put("last_activity", dbHelper.getCurrentDateTime());
+
+                if(device != null) {
+                    if(!device.isSynced()) {
+                        deviceDetails.put("manual_time_entry", device.isManualTimeEntry());
+                        deviceDetails.put("check_in", device.isCheckIn());
+                        deviceDetails.put("check_out", device.isCheckOut());
+                        deviceDetails.put("break_in", device.isBreakIn());
+                        deviceDetails.put("break_out", device.isBreakOut());
+                        deviceDetails.put("overtime_in", device.isOvertimeIn());
+                        deviceDetails.put("overtime_out", device.isOvertimeOut());
+
+                        //sync settings
+                        if(getPrimaryLogo() != null) {
+                            File primaryLogoFile = new File(getPrimaryLogo());
+                            if (primaryLogoFile.exists()) {
+                                uploadImage("PRIMARY_LOGO", primaryLogoFile);
+                            }
+                        }
+
+                        if(getSecondaryLogo() != null) {
+                            File secondaryLogoFile = new File(getSecondaryLogo());
+                            if (secondaryLogoFile.exists()) {
+                                uploadImage("SECONDARY_LOGO", secondaryLogoFile);
+                            }
+                        }
+
+                    }
+                }else{
+                    deviceDetails.put("manual_time_entry", false);
+                    deviceDetails.put("check_in", false);
+                    deviceDetails.put("check_out", false);
+                    deviceDetails.put("break_in", false);
+                    deviceDetails.put("break_out", false);
+                    deviceDetails.put("overtime_in", false);
+                    deviceDetails.put("overtime_out", false);
+
+                    deviceRepository.insertOrUpdateDevice(
+                            Long.parseLong(groupId),
+                            model,
+                            serialNo,
+                            latLong[0],
+                            latLong[1],
+                            dbHelper.getCurrentDateTime(),
+                            true,
+                            dbHelper.getCurrentDateTime(),
+                            dbHelper.getCurrentDateTime(),
+                            JSONObject.NULL.toString(),
+                            false,
+                            false,
+                            false,
+                            false,
+                            false,
+                            false,
+                            false
+                    );
+                }
+            } catch (JSONException e) {
+                e.printStackTrace();
+            }
+
+            try {
+                String token = getToken(this);
+
+                URL url = new URL(App.BASE_URL + "/sync/devices");
+                HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+                conn.setRequestMethod("POST");
+                conn.setRequestProperty("Content-Type", "application/json; utf-8");
+                conn.setRequestProperty("Accept", "application/json");
+                conn.setRequestProperty("Authorization", "Bearer " + token);
+
+                conn.setDoOutput(true);
+
+                try (OutputStream os = conn.getOutputStream()) {
+                    byte[] input = deviceDetails.toString().getBytes("utf-8");
+                    os.write(input, 0, input.length);
+                }
+
+                int responseCode = conn.getResponseCode();
+                Log.d("DeviceRegistration", "Response Code: " + responseCode);
+
+                try (BufferedReader br = new BufferedReader(
+                        new InputStreamReader(conn.getInputStream(), "utf-8"))) {
+                    StringBuilder response = new StringBuilder();
+                    String responseLine;
+                    while ((responseLine = br.readLine()) != null) {
+                        response.append(responseLine.trim());
+                    }
+                    Log.d("DeviceRegistration", "Response: " + response.toString());
+                    deviceRepository.updateSyncedDevice(serialNo);
+                }
+
+
+
+
+
+            } catch (Exception e) {
+                e.printStackTrace();
+                Log.e("DeviceRegistration", "Error registering device: " + e.getMessage() + getToken(this));
+            }
+        });
+
+    }
+
+    private double[] getLatAndLong() {
+        SharedPreferences sharedPreferences = getSharedPreferences(GroupActivity.PREFS_NAME, Context.MODE_PRIVATE);
+        double latitude = Double.parseDouble(sharedPreferences.getString("latitude", "0"));
+        double longitude = Double.parseDouble(sharedPreferences.getString("longitude", "0"));
+//        Log.d("Location", "Lat: " + latitude + ", Lon: " + longitude);
+        return new double[]{latitude, longitude};
+    }
+
+    public void getSimilarDevices(){
+
+        SharedPreferences sharedPreferences = getSharedPreferences(Configuration.PREFS_NAME, Context.MODE_PRIVATE);
+
+        try {
+            String model = getDeviceModel();
+            URL url = new URL(App.BASE_URL + "/all/devices?model=" + model);
+            HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+            conn.setRequestMethod("GET");
+            conn.setRequestProperty("Accept", "application/json");
+            conn.setRequestProperty("Authorization", "Bearer " + App.TOKEN);
+
+            if (conn.getResponseCode() != 200) {
+                throw new RuntimeException("Failed : HTTP error code : " + conn.getResponseCode());
+            }
+
+            BufferedReader br = new BufferedReader(new InputStreamReader((conn.getInputStream())));
+
+            StringBuilder response = new StringBuilder();
+            String output;
+            while ((output = br.readLine()) != null) {
+                response.append(output);
+            }
+
+            conn.disconnect();
+
+            Log.d("DeviceResponse 1:", response.toString());
+            JSONArray devices = new JSONArray(response.toString());
+
+            DeviceRepository deviceRepository = new DeviceRepository(App.this);
+
+            String[] serials = new String[devices.length()];
+
+            for (int i = 0; i < devices.length(); i++) {
+                JSONObject device = devices.getJSONObject(i);
+
+                DeviceModel storedDevice = deviceRepository.getDevice(device.getString("serial_no"));
+
+                if(storedDevice != null && device.getString("serial_no").equals(storedDevice.getSerialNo()) && !storedDevice.isSynced() ) {
+                    continue;
+                }
+
+                deviceRepository.insertOrUpdateDevice(
+                        device.getLong("group_id"),
+                        device.getString("model"),
+                        device.getString("serial_no"),
+                        device.getDouble("lat"),
+                        device.getDouble("lon"),
+                        device.getString("created_at"),
+                        intToBoolean(device.getInt("is_online")),
+                        device.getString("last_sync"),
+                        device.getString("last_activity"),
+                        device.getString("logo_url"),
+                        device.getBoolean("manual_time_entry"),
+                        device.getBoolean("check_in"),
+                        device.getBoolean("check_out"),
+                        device.getBoolean("break_in"),
+                        device.getBoolean("break_out"),
+                        device.getBoolean("overtime_in"),
+                        device.getBoolean("overtime_out")
+                );
+                serials[i] = device.getString("serial_no");
+            }
+
+            deviceRepository.removeMissingDevices(serials);
+        } catch (Exception e) {
+            e.printStackTrace();
+            Log.e("LoginActivity", "Error during device sync: " + e.getMessage(), e);
         }
     }
 
     private void syncUsersFromWeb(){
+        Log.d("SyncingUsers","Syncing users from web");
 
         String access = getAccess();
         if(access.equals("offline")) {
             return;
         }
-
-        Log.d("SyncingUsers","Syncing users from web");
 
         syncUsersOnLogout(App.this, new SyncCallback() {
             @Override
@@ -151,7 +780,7 @@ public class App extends Application {
 
                     conn.disconnect();
 
-                    Log.d("Response 1:", response.toString());
+                    Log.d("Response 2:", response.toString());
                     JSONArray users = new JSONArray(response.toString());
                     UserRepository userRepository = new UserRepository(App.this);
 
@@ -266,6 +895,7 @@ public class App extends Application {
                 byte[] decodedData = Base64.decode(encryptedData, Base64.DEFAULT);
                 String decryptedData = EncryptionUtil.decrypt(decodedData);
                 String[] userData = decryptedData.split(",");
+                System.out.println("UserToken is: " + userData[5]);
                 return userData[5]; // Assuming the token is the 6th element in the array
             }
         } catch (Exception e) {
@@ -293,6 +923,7 @@ public class App extends Application {
             return;
         }
 
+
         ExecutorService executor = Executors.newSingleThreadExecutor();
 
         LoginDataSource loginDataSource = new LoginDataSource(App.this);
@@ -302,6 +933,12 @@ public class App extends Application {
             Log.e("App", "User data is null. Cannot fetch announcements.");
             return;
         }
+
+        if(Objects.equals(userData.getGroupId() ,null)) {
+            Log.e("App", "Group ID is null. Cannot fetch announcements.");
+            return;
+        }
+
 
         executor.execute(() -> {
             try {
@@ -415,7 +1052,15 @@ public class App extends Application {
                         System.out.println("Time entry already exists: " + entry.toString());
                         continue;
                     }
-                    repository.insertTimeEntry(entry.getLong("user_id"), entry.getString("type"), entry.getString("datetime"), entry.getString("metadata"), true);
+                    repository.insertTimeEntry(
+                            entry.getLong("user_id"),
+                            entry.getString("type"),
+                            entry.getString("datetime"),
+                            entry.getString("metadata"),
+                            true,
+                            null,
+                            entry.getString("serial_no")
+                    );
 
                     System.out.println("Time: " + entry.toString());
                 }
@@ -437,144 +1082,183 @@ public class App extends Application {
 
     @SuppressLint("Range")
     public void syncTimeEntriesOnLogout(Context context, SyncCallback callback) {
-
         String access = getAccess();
         System.out.println("Access is: " + access);
 
-        if(access.equals("offline")) {
+        if (access.equals("offline")) {
             if (callback != null) {
                 callback.onSuccess();
             }
             return;
         }
 
-        new Handler(Looper.getMainLooper()).postDelayed(new Runnable() {
-            @Override
-            public void run() {
+        new Handler(Looper.getMainLooper()).postDelayed(() -> {
+            DatabaseHelper dbHelper = new DatabaseHelper(context);
+            SQLiteDatabase db = dbHelper.getReadableDatabase();
 
-                DatabaseHelper dbHelper = new DatabaseHelper(context);
+            Cursor cursor = db.rawQuery(
+                    "SELECT te.*, u." + DatabaseHelper.COLUMN_EMAIL + " FROM " + DatabaseHelper.TABLE_TIME_ENTRIES + " te " +
+                            "JOIN " + DatabaseHelper.TABLE_USERS + " u ON te." + DatabaseHelper.COLUMN_USER_ID + " = u." + DatabaseHelper.COLUMN_ID +
+                            " WHERE te." + DatabaseHelper.COLUMN_IS_SYNCED + " = 0", null);
+            String token = getToken(context);
 
-                SQLiteDatabase db = dbHelper.getReadableDatabase();
-                Cursor cursor = db.rawQuery(
-                        "SELECT te.*, u." + DatabaseHelper.COLUMN_EMAIL + " FROM " + DatabaseHelper.TABLE_TIME_ENTRIES + " te " +
-                                "JOIN " + DatabaseHelper.TABLE_USERS + " u ON te." + DatabaseHelper.COLUMN_USER_ID + " = u." + DatabaseHelper.COLUMN_ID +
-                                " WHERE te." + DatabaseHelper.COLUMN_IS_SYNCED + " = 0", null);
-                String token = getToken(context);
-
-                if (cursor.getCount() == 0) {
-                    cursor.close();
-                    db.close();
-                    if (callback != null) {
-                        callback.onSuccess();
-                    }
-                    return;
-                }
-
-                StringBuilder jsonBuilder = new StringBuilder();
-                jsonBuilder.append("[");
-
-                while (cursor.moveToNext()) {
-                    jsonBuilder.append("{");
-                    jsonBuilder.append("\"id\":").append(cursor.getInt(cursor.getColumnIndex(DatabaseHelper.COLUMN_ID))).append(",");
-                    jsonBuilder.append("\"user_id\":").append(cursor.getInt(cursor.getColumnIndex(DatabaseHelper.COLUMN_USER_ID))).append(",");
-                    jsonBuilder.append("\"email\":\"").append(cursor.getString(cursor.getColumnIndex(DatabaseHelper.COLUMN_EMAIL))).append("\",");
-                    jsonBuilder.append("\"type\":\"").append(cursor.getString(cursor.getColumnIndex(DatabaseHelper.COLUMN_TYPE))).append("\",");
-                    jsonBuilder.append("\"datetime\":\"").append(cursor.getString(cursor.getColumnIndex(DatabaseHelper.COLUMN_DATETIME))).append("\",");
-                    jsonBuilder.append("\"metadata\":\"").append(cursor.getString(cursor.getColumnIndex(DatabaseHelper.COLUMN_METADATA))).append("\",");
-                    jsonBuilder.append("\"is_synced\":").append(cursor.getInt(cursor.getColumnIndex(DatabaseHelper.COLUMN_IS_SYNCED))).append(",");
-                    jsonBuilder.append("\"created_at\":\"").append(cursor.getString(cursor.getColumnIndex(DatabaseHelper.COLUMN_CREATED_AT))).append("\",");
-                    jsonBuilder.append("\"updated_at\":\"").append(cursor.getString(cursor.getColumnIndex(DatabaseHelper.COLUMN_UPDATED_AT))).append("\",");
-                    jsonBuilder.append("\"deleted_at\":\"").append(cursor.getString(cursor.getColumnIndex(DatabaseHelper.COLUMN_DELETED_AT))).append("\",");
-                    jsonBuilder.append("\"deleted_by\":\"").append(cursor.getString(cursor.getColumnIndex(DatabaseHelper.COLUMN_DELETED_BY))).append("\"");
-                    jsonBuilder.append("},");
-                }
-
-                if (jsonBuilder.length() > 1) {
-                    jsonBuilder.setLength(jsonBuilder.length() - 1); // Remove the last comma
-                }
-                jsonBuilder.append("]");
-
+            if (cursor.getCount() == 0) {
                 cursor.close();
-                db.close();
-
-                String timeEntriesJson = jsonBuilder.toString();
-                String jsonData = "{\"time_entries\":" + timeEntriesJson + "}";
-                ExecutorService executor = Executors.newSingleThreadExecutor();
-                Handler handler = new Handler(Looper.getMainLooper());
-
-                executor.execute(() -> {
-                    boolean success = false;
-                    String errorMessage = null;
-
-                    try {
-
-                        URL url = new URL(App.BASE_URL + "/sync/time_entries");
-                        HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-                        conn.setRequestMethod("POST");
-                        conn.setRequestProperty("Content-Type", "application/json; utf-8");
-                        conn.setRequestProperty("Accept", "application/json");
-                        conn.setRequestProperty("Authorization", "Bearer " + token);
-                        conn.setDoOutput(true);
-
-                        try (OutputStream os = conn.getOutputStream()) {
-                            byte[] input = jsonData.getBytes("utf-8");
-                            os.write(input, 0, input.length);
-                        }
-
-                        int responseCode = conn.getResponseCode();
-                        if (responseCode == HttpURLConnection.HTTP_OK) {
-                            success = true;
-                        } else {
-                            try (BufferedReader br = new BufferedReader(new InputStreamReader(conn.getErrorStream(), "utf-8"))) {
-                                StringBuilder response = new StringBuilder();
-                                String responseLine;
-                                while ((responseLine = br.readLine()) != null) {
-                                    response.append(responseLine.trim());
-                                }
-                                JSONObject jsonResponse = new JSONObject(response.toString());
-                                if (jsonResponse.has("message")) {
-                                    errorMessage = jsonResponse.getString("message");
-                                }
-                            }
-                        }
-                    } catch (Exception e) {
-                        Log.e("SyncTimeEntriesTask", e.getMessage());
-                        errorMessage = e.getMessage();
-                        e.printStackTrace();
-                    }
-                    String finalErrorMessage = errorMessage;
-                    boolean finalSuccess = success;
-                    handler.post(() -> {
-                        if (finalSuccess) {
-
-                            SQLiteDatabase writableDb = dbHelper.getWritableDatabase();
-                            ContentValues values = new ContentValues();
-                            values.put(DatabaseHelper.COLUMN_IS_SYNCED, 1);
-                            writableDb.update(DatabaseHelper.TABLE_TIME_ENTRIES, values, null, null);
-                            writableDb.close();
-
-                            if (callback != null) {
-                                callback.onSuccess();
-                            }
-                        } else {
-                            if (callback != null) {
-                                callback.onFailure(finalErrorMessage);
-                            }
-                        }
-                    });
-                });
+                if (callback != null) {
+                    callback.onSuccess();
+                }
+                return;
             }
-        }, 3000);
 
+            JSONArray timeEntriesArray = new JSONArray();
+            List<File> imageFiles = new ArrayList<>();
+
+            while (cursor.moveToNext()) {
+                JSONObject timeEntry = new JSONObject();
+                try {
+                    timeEntry.put("id", cursor.getInt(cursor.getColumnIndex(DatabaseHelper.COLUMN_ID)));
+                    timeEntry.put("user_id", cursor.getInt(cursor.getColumnIndex(DatabaseHelper.COLUMN_USER_ID)));
+                    timeEntry.put("serial_no", cursor.getInt(cursor.getColumnIndex(DatabaseHelper.COLUMN_SERIAL_NO)));
+                    timeEntry.put("type", cursor.getInt(cursor.getColumnIndex(DatabaseHelper.COLUMN_TYPE)));
+                    timeEntry.put("email", cursor.getString(cursor.getColumnIndex(DatabaseHelper.COLUMN_EMAIL)));
+                    timeEntry.put("type", cursor.getString(cursor.getColumnIndex(DatabaseHelper.COLUMN_TYPE)));
+                    timeEntry.put("datetime", cursor.getString(cursor.getColumnIndex(DatabaseHelper.COLUMN_DATETIME)));
+                    timeEntry.put("metadata", cursor.getString(cursor.getColumnIndex(DatabaseHelper.COLUMN_METADATA)));
+                    timeEntry.put("is_synced", cursor.getInt(cursor.getColumnIndex(DatabaseHelper.COLUMN_IS_SYNCED)));
+                    timeEntry.put("lat", cursor.getDouble(cursor.getColumnIndex(DatabaseHelper.COLUMN_LATITUDE)));
+                    timeEntry.put("lon", cursor.getDouble(cursor.getColumnIndex(DatabaseHelper.COLUMN_LONGITUDE)));
+                    timeEntry.put("created_at", cursor.getString(cursor.getColumnIndex(DatabaseHelper.COLUMN_CREATED_AT)));
+                    timeEntry.put("updated_at", cursor.getString(cursor.getColumnIndex(DatabaseHelper.COLUMN_UPDATED_AT)));
+                    timeEntry.put("deleted_at", cursor.getString(cursor.getColumnIndex(DatabaseHelper.COLUMN_DELETED_AT)));
+                    timeEntry.put("deleted_by", cursor.getString(cursor.getColumnIndex(DatabaseHelper.COLUMN_DELETED_BY)));
+
+                    Log.d("SyncTimeEntriesTask", "Snapshot Type: " + cursor.getString(cursor.getColumnIndex(DatabaseHelper.COLUMN_TYPE)));
+                    String snapshotPath = cursor.getString(cursor.getColumnIndex("snapshot"));
+                    if (snapshotPath != null && !snapshotPath.isEmpty()) {
+                        File imageFile = new File(snapshotPath);
+                        if (imageFile.exists()) {
+                            imageFiles.add(imageFile);
+                            timeEntry.put("snapshot", imageFile.getName());
+                        } else {
+                            timeEntry.put("snapshot", JSONObject.NULL);
+                        }
+                    } else {
+                        timeEntry.put("snapshot", JSONObject.NULL);
+                    }
+
+                } catch (JSONException e) {
+                    e.printStackTrace();
+                }
+                timeEntriesArray.put(timeEntry);
+            }
+            cursor.close();
+
+            JSONObject jsonData = new JSONObject();
+            try {
+                jsonData.put("time_entries", timeEntriesArray);
+            } catch (JSONException e) {
+                e.printStackTrace();
+            }
+
+            ExecutorService executor = Executors.newSingleThreadExecutor();
+            Handler handler = new Handler(Looper.getMainLooper());
+
+            executor.execute(() -> {
+                boolean success = false;
+                String errorMessage = null;
+                String boundary = "*****";
+
+                try {
+                    URL url = new URL(App.BASE_URL + "/sync/time_entries");
+                    HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+                    conn.setRequestMethod("POST");
+                    conn.setRequestProperty("Authorization", "Bearer " + token);
+                    conn.setRequestProperty("Content-Type", "multipart/form-data; boundary=" + boundary);
+                    conn.setRequestProperty("Accept", "application/json");
+                    conn.setDoOutput(true);
+
+                    DataOutputStream dos = new DataOutputStream(conn.getOutputStream());
+
+                    // Write JSON data
+                    dos.writeBytes("--" + boundary + "\r\n");
+                    dos.writeBytes("Content-Disposition: form-data; name=\"time_entries\"\r\n\r\n");
+                    dos.writeBytes(jsonData.getJSONArray("time_entries").toString());
+                    dos.writeBytes("\r\n");
+
+                    Log.d("SyncTimeEntriesTask", "JSON Data: " + jsonData.toString());
+                    // Attach image files
+                    for (int i = 0; i < imageFiles.size(); i++) {
+                        File imageFile = imageFiles.get(i);
+                        FileInputStream fis = new FileInputStream(imageFile);
+
+                        dos.writeBytes("--" + boundary + "\r\n");
+                        dos.writeBytes("Content-Disposition: form-data; name=\"snapshots[" + i + "]\"; filename=\"" + imageFile.getName() + "\"\r\n");
+                        dos.writeBytes("Content-Type: " + URLConnection.guessContentTypeFromName(imageFile.getName()) + "\r\n\r\n");
+                        byte[] buffer = new byte[1024];
+                        int bytesRead;
+                        while ((bytesRead = fis.read(buffer)) != -1) {
+                            dos.write(buffer, 0, bytesRead);
+                        }
+                        dos.writeBytes("\r\n");
+                        fis.close();
+                    }
+
+                    dos.writeBytes("--" + boundary + "--\r\n");
+                    dos.flush();
+                    dos.close();
+
+                    int responseCode = conn.getResponseCode();
+                    if (responseCode == HttpURLConnection.HTTP_OK) {
+                        success = true;
+                    } else {
+                        try (BufferedReader br = new BufferedReader(new InputStreamReader(conn.getErrorStream(), "utf-8"))) {
+                            StringBuilder response = new StringBuilder();
+                            String responseLine;
+                            while ((responseLine = br.readLine()) != null) {
+                                response.append(responseLine.trim());
+                            }
+                            Log.e("SyncTimeEntriesTask", "Response: " + response.toString());
+                            JSONObject jsonResponse = new JSONObject(response.toString());
+                            if (jsonResponse.has("message")) {
+                                errorMessage = jsonResponse.getString("message");
+                            }
+                        }
+                    }
+                } catch (Exception e) {
+                    Log.e("SyncTimeEntriesTask", e.getMessage());
+                    errorMessage = e.getMessage();
+                    e.printStackTrace();
+                }
+
+                String finalErrorMessage = errorMessage;
+                boolean finalSuccess = success;
+                handler.post(() -> {
+                    if (finalSuccess) {
+                        SQLiteDatabase writableDb = dbHelper.getWritableDatabase();
+                        ContentValues values = new ContentValues();
+                        values.put(DatabaseHelper.COLUMN_IS_SYNCED, 1);
+                        writableDb.update(DatabaseHelper.TABLE_TIME_ENTRIES, values, null, null);
+                        writableDb.close();
+
+                        if (callback != null) {
+                            callback.onSuccess();
+                        }
+                    } else {
+                        if (callback != null) {
+                            callback.onFailure(finalErrorMessage);
+                        }
+                    }
+                });
+            });
+        }, 3000);
     }
 
     @SuppressLint("Range")
-    public void syncUsersOnLogout(Context context, SyncCallback callback) {
-
+    public void syncUsersOnLogout(Context context, SyncCallback callback)  {
         String access = getAccess();
         System.out.println("Access is: " + access);
 
-        if(access.equals("offline")) {
+        if (access.equals("offline")) {
             if (callback != null) {
                 callback.onSuccess();
             }
@@ -582,7 +1266,6 @@ public class App extends Application {
         }
 
         String token = getToken(context);
-
         System.out.println("Token is: " + token);
 
         SQLiteDatabase db = dbHelper.getReadableDatabase();
@@ -591,96 +1274,88 @@ public class App extends Application {
         Log.d("SyncUsersTask", "Cursor count: " + cursor.getCount());
         if (cursor.getCount() < 1) {
             cursor.close();
-            db.close();
-
             if (callback != null) {
                 callback.onSuccess();
             }
             return;
         }
 
-
-        StringBuilder jsonBuilder = new StringBuilder();
-        jsonBuilder.append("[");
+        JSONArray usersArray = new JSONArray();
 
         while (cursor.moveToNext()) {
-            jsonBuilder.append("{");
-            jsonBuilder.append("\"id\":").append(cursor.getInt(cursor.getColumnIndex(DatabaseHelper.COLUMN_ID))).append(",");
-            jsonBuilder.append("\"group_id\":").append(cursor.getInt(cursor.getColumnIndex(DatabaseHelper.COLUMN_GROUP_ID))).append(",");
-            jsonBuilder.append("\"role\":\"").append(cursor.getString(cursor.getColumnIndex(DatabaseHelper.COLUMN_ROLE))).append("\",");
-            jsonBuilder.append("\"first_name\":\"").append(cursor.getString(cursor.getColumnIndex(DatabaseHelper.COLUMN_FIRST_NAME))).append("\",");
-            jsonBuilder.append("\"middle_name\":\"").append(cursor.getString(cursor.getColumnIndex(DatabaseHelper.COLUMN_MIDDLE_NAME))).append("\",");
-            jsonBuilder.append("\"last_name\":\"").append(cursor.getString(cursor.getColumnIndex(DatabaseHelper.COLUMN_LAST_NAME))).append("\",");
-            jsonBuilder.append("\"lat\":").append(cursor.getDouble(cursor.getColumnIndex(DatabaseHelper.COLUMN_LAT))).append(",");
-            jsonBuilder.append("\"lon\":").append(cursor.getDouble(cursor.getColumnIndex(DatabaseHelper.COLUMN_LON))).append(",");
-            jsonBuilder.append("\"address1\":\"").append(cursor.getString(cursor.getColumnIndex(DatabaseHelper.COLUMN_ADDRESS1))).append("\",");
-            jsonBuilder.append("\"address2\":\"").append(cursor.getString(cursor.getColumnIndex(DatabaseHelper.COLUMN_ADDRESS2))).append("\",");
-            jsonBuilder.append("\"barangay\":\"").append(cursor.getString(cursor.getColumnIndex(DatabaseHelper.COLUMN_BARANGAY))).append("\",");
-            jsonBuilder.append("\"municipality\":\"").append(cursor.getString(cursor.getColumnIndex(DatabaseHelper.COLUMN_MUNICIPALITY))).append("\",");
-            jsonBuilder.append("\"province\":\"").append(cursor.getString(cursor.getColumnIndex(DatabaseHelper.COLUMN_PROVINCE))).append("\",");
-            jsonBuilder.append("\"birth_date\":\"").append(cursor.getString(cursor.getColumnIndex(DatabaseHelper.COLUMN_BIRTH_DATE))).append("\",");
-            jsonBuilder.append("\"gender\":\"").append(cursor.getString(cursor.getColumnIndex(DatabaseHelper.COLUMN_GENDER))).append("\",");
-            jsonBuilder.append("\"zip_code\":\"").append(cursor.getString(cursor.getColumnIndex(DatabaseHelper.COLUMN_ZIP_CODE))).append("\",");
-            jsonBuilder.append("\"email\":\"").append(cursor.getString(cursor.getColumnIndex(DatabaseHelper.COLUMN_EMAIL))).append("\",");
-            jsonBuilder.append("\"phone_number\":\"").append(cursor.getString(cursor.getColumnIndex(DatabaseHelper.COLUMN_PHONE_NUMBER))).append("\",");
-            jsonBuilder.append("\"emergency_contact_name\":\"").append(cursor.getString(cursor.getColumnIndex(DatabaseHelper.COLUMN_EMERGENCY_CONTACT_NAME))).append("\",");
-            jsonBuilder.append("\"emergency_contact_no\":\"").append(cursor.getString(cursor.getColumnIndex(DatabaseHelper.COLUMN_EMERGENCY_CONTACT_NO))).append("\",");
-            jsonBuilder.append("\"status\":\"").append(cursor.getString(cursor.getColumnIndex(DatabaseHelper.COLUMN_STATUS))).append("\",");
-            jsonBuilder.append("\"created_at\":\"").append(cursor.getString(cursor.getColumnIndex(DatabaseHelper.COLUMN_CREATED_AT))).append("\",");
-            jsonBuilder.append("\"updated_at\":\"").append(cursor.getString(cursor.getColumnIndex(DatabaseHelper.COLUMN_UPDATED_AT))).append("\",");
-//            jsonBuilder.append("\"deleted_at\":\"").append(nullToEmptyString(cursor.getString(cursor.getColumnIndex(DatabaseHelper.COLUMN_DELETED_AT)))).append("\",");
-            jsonBuilder.append("\"deleted_by\":\"").append(cursor.getString(cursor.getColumnIndex(DatabaseHelper.COLUMN_DELETED_BY))).append("\",");
+            try {
+                JSONObject userObject = new JSONObject();
+                userObject.put("id", cursor.getInt(cursor.getColumnIndex(DatabaseHelper.COLUMN_ID)));
+                userObject.put("group_id", cursor.getInt(cursor.getColumnIndex(DatabaseHelper.COLUMN_GROUP_ID)));
+                userObject.put("role", cursor.getString(cursor.getColumnIndex(DatabaseHelper.COLUMN_ROLE)));
+                userObject.put("first_name", cursor.getString(cursor.getColumnIndex(DatabaseHelper.COLUMN_FIRST_NAME)));
+                userObject.put("middle_name", cursor.getString(cursor.getColumnIndex(DatabaseHelper.COLUMN_MIDDLE_NAME)));
+                userObject.put("last_name", cursor.getString(cursor.getColumnIndex(DatabaseHelper.COLUMN_LAST_NAME)));
+                userObject.put("lat", cursor.getDouble(cursor.getColumnIndex(DatabaseHelper.COLUMN_LAT)));
+                userObject.put("lon", cursor.getDouble(cursor.getColumnIndex(DatabaseHelper.COLUMN_LON)));
+                userObject.put("address1", cursor.getString(cursor.getColumnIndex(DatabaseHelper.COLUMN_ADDRESS1)));
+                userObject.put("address2", cursor.getString(cursor.getColumnIndex(DatabaseHelper.COLUMN_ADDRESS2)));
+                userObject.put("barangay", cursor.getString(cursor.getColumnIndex(DatabaseHelper.COLUMN_BARANGAY)));
+                userObject.put("municipality", cursor.getString(cursor.getColumnIndex(DatabaseHelper.COLUMN_MUNICIPALITY)));
+                userObject.put("province", cursor.getString(cursor.getColumnIndex(DatabaseHelper.COLUMN_PROVINCE)));
+                userObject.put("birth_date", cursor.getString(cursor.getColumnIndex(DatabaseHelper.COLUMN_BIRTH_DATE)));
+                userObject.put("gender", cursor.getString(cursor.getColumnIndex(DatabaseHelper.COLUMN_GENDER)));
+                userObject.put("zip_code", cursor.getString(cursor.getColumnIndex(DatabaseHelper.COLUMN_ZIP_CODE)));
+                userObject.put("email", cursor.getString(cursor.getColumnIndex(DatabaseHelper.COLUMN_EMAIL)));
+                userObject.put("phone_number", cursor.getString(cursor.getColumnIndex(DatabaseHelper.COLUMN_PHONE_NUMBER)));
+                userObject.put("emergency_contact_name", cursor.getString(cursor.getColumnIndex(DatabaseHelper.COLUMN_EMERGENCY_CONTACT_NAME)));
+                userObject.put("emergency_contact_no", cursor.getString(cursor.getColumnIndex(DatabaseHelper.COLUMN_EMERGENCY_CONTACT_NO)));
+                userObject.put("status", cursor.getString(cursor.getColumnIndex(DatabaseHelper.COLUMN_STATUS)));
+                userObject.put("created_at", cursor.getString(cursor.getColumnIndex(DatabaseHelper.COLUMN_CREATED_AT)));
+                userObject.put("updated_at", cursor.getString(cursor.getColumnIndex(DatabaseHelper.COLUMN_UPDATED_AT)));
+                userObject.put("deleted_by", cursor.getString(cursor.getColumnIndex(DatabaseHelper.COLUMN_DELETED_BY)));
+                userObject.put("source", cursor.getString(cursor.getColumnIndex(DatabaseHelper.COLUMN_SOURCE)));
 
-            long userId = cursor.getLong(cursor.getColumnIndex(DatabaseHelper.COLUMN_ID));
-            List<Biometric> biometrics = dbHelper.getBiometricsByUserId(userId);
-            jsonBuilder.append("\"biometrics\":[");
+                long userId = cursor.getLong(cursor.getColumnIndex(DatabaseHelper.COLUMN_ID));
+                List<Biometric> biometrics = dbHelper.getBiometricsByUserId(userId);
+                JSONArray biometricsArray = new JSONArray();
 
-            for (Biometric biometric : biometrics) {
-                jsonBuilder.append("{");
-                jsonBuilder.append("\"id\":").append(biometric.getId()).append(",");
-                jsonBuilder.append("\"key\":\"").append(escapeJson(biometric.getKey())).append("\",");
-                jsonBuilder.append("\"is_synced\":\"").append(escapeJson(biometric.getIsSynced().toString())).append("\",");
-                jsonBuilder.append("\"type\":\"").append(escapeJson(biometric.getType())).append("\"");
+                for (Biometric biometric : biometrics) {
+                    JSONObject biometricObject = new JSONObject();
+                    biometricObject.put("id", biometric.getId());
+                    biometricObject.put("key", escapeJson(biometric.getKey()));
+                    biometricObject.put("is_synced", escapeJson(biometric.getIsSynced().toString()));
+                    biometricObject.put("type", escapeJson(biometric.getType()));
 
-                List<Fingerprint> fingerprints = dbHelper.getFingerprintsByBiometricId(biometric.getId());
-                jsonBuilder.append(",\"fingerprints\":[");
+                    List<Fingerprint> fingerprints = dbHelper.getFingerprintsByBiometricId(biometric.getId());
+                    JSONArray fingerprintsArray = new JSONArray();
 
-                for (Fingerprint fingerprint : fingerprints) {
-                    String key = Base64.encodeToString(fingerprint.getKey().getBytes(), Base64.DEFAULT);
-                    jsonBuilder.append("{");
-                    jsonBuilder.append("\"key\":\"").append(escapeJson(key)).append("\"");
-                    jsonBuilder.append("},");
+                    for (Fingerprint fingerprint : fingerprints) {
+                        JSONObject fingerprintObject = new JSONObject();
+                        String key = Base64.encodeToString(fingerprint.getKey().getBytes(), Base64.DEFAULT);
+                        fingerprintObject.put("key", escapeJson(key));
+                        fingerprintsArray.put(fingerprintObject);
+                    }
+                    biometricObject.put("fingerprints", fingerprintsArray);
+                    biometricsArray.put(biometricObject);
                 }
-                if (jsonBuilder.charAt(jsonBuilder.length() - 1) == ',') {
-                    jsonBuilder.setLength(jsonBuilder.length() - 1);
-                }
-                jsonBuilder.append("]");
-                jsonBuilder.append("},");
+                userObject.put("biometrics", biometricsArray);
+                usersArray.put(userObject);
+            } catch (JSONException e) {
+                e.printStackTrace();
             }
-            if (jsonBuilder.charAt(jsonBuilder.length() - 1) == ',') {
-                jsonBuilder.setLength(jsonBuilder.length() - 1);
-            }
-            jsonBuilder.append("]");
-            jsonBuilder.append("},");
         }
-
-        if (jsonBuilder.length() > 1) {
-            jsonBuilder.setLength(jsonBuilder.length() - 1);
-        }
-        jsonBuilder.append("]");
 
         cursor.close();
-        db.close();
 
-        String usersJson = jsonBuilder.toString();
-        String jsonData = "{\"users\":" + usersJson + "}";
-
-        System.out.println("UserRe:"+jsonData);
+        String jsonData = null;
+        try {
+            jsonData = new JSONObject().put("users", usersArray).toString();
+        } catch (JSONException e) {
+            throw new RuntimeException(e);
+        }
+        System.out.println("UserRe:" + jsonData);
 
         writeResponseToFile(jsonData);
         ExecutorService executor = Executors.newSingleThreadExecutor();
         Handler handler = new Handler(Looper.getMainLooper());
 
+        String finalJsonData = jsonData;
         executor.execute(() -> {
             boolean success = false;
             String errorMessage = null;
@@ -695,7 +1370,7 @@ public class App extends Application {
                 conn.setDoOutput(true);
 
                 try (OutputStream os = conn.getOutputStream()) {
-                    byte[] input = jsonData.getBytes("utf-8");
+                    byte[] input = finalJsonData.getBytes("utf-8");
                     os.write(input, 0, input.length);
                 }
 
@@ -711,15 +1386,14 @@ public class App extends Application {
                         }
                         System.out.println("The Response: " + response.toString());
                         System.out.println("Token: " + token);
-                        if(response.toString().equals("false")) {
+                        if (response.toString().equals("false")) {
                             errorMessage = "Unauthorized, please login again.";
-                        }else {
+                        } else {
                             JSONObject jsonResponse = new JSONObject(response.toString());
                             if (jsonResponse.has("message")) {
                                 errorMessage = jsonResponse.getString("message");
                             }
                         }
-
                     }
                 }
             } catch (Exception e) {
@@ -731,7 +1405,6 @@ public class App extends Application {
             boolean finalSuccess = success;
             String finalErrorMessage = errorMessage;
             handler.post(() -> {
-
                 if (finalSuccess) {
                     SQLiteDatabase writableDb = dbHelper.getWritableDatabase();
                     ContentValues values = new ContentValues();
@@ -746,8 +1419,7 @@ public class App extends Application {
                     if (callback != null) {
                         System.out.println("Error is: " + finalErrorMessage);
 
-                        //check if contains unauthorized
-                        if(finalErrorMessage.contains("Unauthorized")){
+                        if (finalErrorMessage.contains("Unauthorized")) {
                             refreshToken();
                         }
 
@@ -809,8 +1481,12 @@ public class App extends Application {
 
                     // Save the new token to user_prefs
                     // Encrypt the user data
-                    System.out.println("The new Encrypt is" + displayName + "," + userJson.getString("email") + "," + "No_Password" + "," + userJson.getLong("group_id")  + "," + userJson.getString("role") + "," + newToken);
-                    byte[] encryptedData = EncryptionUtil.encrypt(displayName + "," + userJson.getString("email") + "," + "No_Password" + "," + userJson.getLong("group_id")  + "," + userJson.getString("role") + "," + newToken);
+
+                    System.out.println("The Group ID is: " + userJson.isNull("group_id"));
+
+                    long userGroupId = userJson.isNull("group_id") ? 0 : userJson.getLong("group_id");
+//                    System.out.println("The new Encrypt is" + displayName + "," + userJson.getString("email") + "," + "No_Password" + "," + userJson.getLong("group_id")  + "," + userJson.getString("role") + "," + newToken);
+                    byte[] encryptedData = EncryptionUtil.encrypt(displayName + "," + userJson.getString("email") + "," + "No_Password" + "," + userGroupId  + "," + userJson.getString("role") + "," + newToken);
 
                     SharedPreferences sharedPreferences = getSharedPreferences("user_prefs", Context.MODE_PRIVATE);
                     SharedPreferences.Editor editor = sharedPreferences.edit();
@@ -879,7 +1555,7 @@ public class App extends Application {
         Log.d("SyncUsersTask", "Cursor count: " + cursor.getCount());
         if (cursor.getCount() < 1) {
             cursor.close();
-            db.close();
+            //db.close();
            if(!silent){
                new SweetAlertDialog(context, SweetAlertDialog.WARNING_TYPE)
                        .setTitleText("All users have been synced already.")
@@ -890,6 +1566,7 @@ public class App extends Application {
 
         StringBuilder jsonBuilder = new StringBuilder();
         jsonBuilder.append("[");
+
 
         while (cursor.moveToNext()) {
             jsonBuilder.append("{");
@@ -958,7 +1635,7 @@ public class App extends Application {
         jsonBuilder.append("]");
 
         cursor.close();
-        db.close();
+        //db.close();
 
         String usersJson = jsonBuilder.toString();
         String jsonData = "{\"users\":" + usersJson + "}";
@@ -1033,9 +1710,9 @@ public class App extends Application {
                 if (finalSuccess) {
 
                     if(!silent) {
-                        new SweetAlertDialog(context, SweetAlertDialog.SUCCESS_TYPE)
-                                .setTitleText("Sync successful")
-                                .show();
+                       dialog = new SweetAlertDialog(context, SweetAlertDialog.SUCCESS_TYPE)
+                                .setTitleText("Sync successful");
+                        dialog.show();
                     }
 
                     SQLiteDatabase writableDb = dbHelper.getWritableDatabase();
@@ -1049,10 +1726,10 @@ public class App extends Application {
                     }
                 } else {
 
-                    new SweetAlertDialog(context, SweetAlertDialog.ERROR_TYPE)
+                    dialog = new SweetAlertDialog(context, SweetAlertDialog.ERROR_TYPE)
                             .setTitleText("Failed to sync.")
-                            .setContentText(finalErrorMessage)
-                            .show();
+                            .setContentText(finalErrorMessage);
+                    dialog.show();
 
                     if (callback != null) {
                         callback.onFailure(finalErrorMessage);
@@ -1090,6 +1767,57 @@ public class App extends Application {
                 }
             }, UserDao.class);// 修改beanDao对象
         }
+    }
+
+
+    public class FileCleanupUtil {
+
+        public void deleteOldFiles(long minutes) {
+            Log.d("FileCleanupUtil", "Deleting old files older than " + minutes + " minutes...");
+
+            // Define the folder path
+            File folder = new File(Environment.getExternalStorageDirectory(), "snapshots");
+
+            // Check if the folder exists
+            if (!folder.exists() || !folder.isDirectory()) {
+                Log.d("FileCleanupUtil", "Folder does not exist or is not a directory.");
+                return;
+            }
+
+            // Get the current time
+            long currentTime = System.currentTimeMillis();
+
+            // Convert minutes to milliseconds
+            long thresholdInMillis = minutes * 60 * 1000;
+
+            // List all files in the folder
+            File[] files = folder.listFiles();
+
+            if (files == null || files.length == 0) {
+                Log.d("FileCleanupUtil", "No files found in the folder.");
+                return;
+            }
+
+            // Iterate through the files
+            for (File file : files) {
+                if (file.isFile()) {
+                    long lastModified = file.lastModified();
+
+                    // Check if the file is older than the specified time
+                    if (currentTime - lastModified > thresholdInMillis) {
+                        boolean isDeleted = file.delete();
+                        if (isDeleted) {
+                            Log.d("FileCleanupUtil", "Deleted file: " + file.getName());
+                        } else {
+                            Log.d("FileCleanupUtil", "Failed to delete file: " + file.getName());
+                        }
+                    } else {
+                        Log.d("FileCleanupUtil", "File is not older than " + minutes + " minutes: " + file.getName());
+                    }
+                }
+            }
+        }
+
     }
 
 

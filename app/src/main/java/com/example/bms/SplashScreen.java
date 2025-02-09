@@ -1,14 +1,19 @@
 package com.example.bms;
 
+import android.Manifest;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.util.Base64;
 import android.util.Log;
+import android.widget.ImageView;
 import android.widget.Toast;
 
 import androidx.activity.EdgeToEdge;
@@ -24,6 +29,7 @@ import androidx.core.view.WindowInsetsCompat;
 import com.example.bms.data.LoginDataSource;
 import com.example.bms.data.Result;
 import com.example.bms.data.model.LoggedInUser;
+import com.example.bms.time_entry.TimeEntryRegister;
 import com.example.bms.ui.login.LoginActivity;
 import com.google.android.gms.location.FusedLocationProviderClient;
 import com.google.android.gms.location.LocationAvailability;
@@ -32,6 +38,9 @@ import com.google.android.gms.location.LocationRequest;
 import com.google.android.gms.location.LocationResult;
 import com.google.android.gms.location.LocationServices;
 
+import java.io.File;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Objects;
 
 import cn.pedant.SweetAlert.SweetAlertDialog;
@@ -41,7 +50,7 @@ public class SplashScreen extends AppCompatActivity {
     SharedPreferences sharedPreferences;
     String savedGroupId;
 
-
+    long modelGroupId = -1;
 
     private String getToken() {
         try {
@@ -60,17 +69,23 @@ public class SplashScreen extends AppCompatActivity {
     }
 
 
+    private String getSecondaryLogo() {
+        SharedPreferences sharedPreferences = getSharedPreferences("device_settings", Context.MODE_PRIVATE);
+        String secondaryLogo = sharedPreferences.getString("SECONDARY_LOGO", null);
+        if (secondaryLogo == null) {
+            return "drawable/logo"; // Return the default logo resource name
+        }
+        return secondaryLogo;
+    }
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         sharedPreferences= getSharedPreferences(GroupActivity.PREFS_NAME, Context.MODE_PRIVATE);
         super.onCreate(savedInstanceState);
         EdgeToEdge.enable(this);
         setContentView(R.layout.activity_splash_screen);
-        ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.splash_screen), (v, insets) -> {
-            Insets systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars());
-            v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom);
-            return insets;
-        });
+
+        Objects.requireNonNull(getWindow().getInsetsController()).hide(WindowInsetsCompat.Type.systemBars());
 
         LoginDataSource loginDataSource = new LoginDataSource(SplashScreen.this);
         LoggedInUser data = loginDataSource.getUserData(this);
@@ -90,6 +105,26 @@ public class SplashScreen extends AppCompatActivity {
             return;
         }
 
+
+        ImageView logo = findViewById(R.id.logo);
+        String secondaryLogo = getSecondaryLogo();
+        if (!secondaryLogo.equals("drawable/logo")) {
+            File imgFile = new File(secondaryLogo);
+            Log.d("SecondaryLogo", "Path: " + imgFile.getAbsolutePath() + " Exists: " + imgFile.exists());
+            if (imgFile.exists()) {
+                Bitmap myBitmap = BitmapFactory.decodeFile(imgFile.getAbsolutePath());
+                logo.setImageBitmap(myBitmap);
+            } else {
+                logo.setImageResource(R.drawable.logo);
+            }
+        } else {
+            logo.setImageResource(R.drawable.logo);
+        }
+
+
+        DeviceRepository deviceRepository = new DeviceRepository(this);
+        modelGroupId = deviceRepository.getModelGroupId(Build.MODEL);
+
         savedGroupId = String.valueOf(data.getGroupId());
 
         SharedPreferences sharedPreferences = getSharedPreferences(GroupActivity.PREFS_NAME, Context.MODE_PRIVATE);
@@ -98,15 +133,22 @@ public class SplashScreen extends AppCompatActivity {
         initMain();
     }
 
+
+
     private void initMain(){
         new Handler(Looper.getMainLooper()).postDelayed(new Runnable() {
             @Override
             public void run() {
+
                 if (savedGroupId.equals("0")) {
                     startActivity(new Intent(SplashScreen.this, GroupActivity.class));
                     finish();
+                }else if(modelGroupId != -1 && modelGroupId != Long.parseLong(savedGroupId)){
+                    startActivity(new Intent(SplashScreen.this, GroupActivity.class));
+                    finish();
                 }else{
-                    startActivity(new Intent(SplashScreen.this, MainActivity.class));
+                    startActivity(new Intent(SplashScreen.this, TimeEntryRegister.class));
+//                    startActivity(new Intent(SplashScreen.this, MainActivity.class));
                     finish();
                 }
             }

@@ -144,6 +144,7 @@ public class UserRepository {
         values.put(DatabaseHelper.COLUMN_UPDATED_AT, dbHelper.getCurrentDateTime());
         values.put(DatabaseHelper.COLUMN_PASSWORD, password);
         values.put((DatabaseHelper.COLUMN_IS_SYNCED), true);
+        values.put(DatabaseHelper.COLUMN_SOURCE, "existing");
 
         long id = db.insert(DatabaseHelper.TABLE_USERS, null, values);
         db.close();
@@ -178,6 +179,7 @@ public class UserRepository {
         values.put(DatabaseHelper.COLUMN_UPDATED_AT, dbHelper.getCurrentDateTime());
         values.put(DatabaseHelper.COLUMN_PASSWORD, password);
         values.put(DatabaseHelper.COLUMN_IS_SYNCED, true);
+        values.put(DatabaseHelper.COLUMN_SOURCE, "existing");
 
         long result;
         Cursor cursor = db.query(DatabaseHelper.TABLE_USERS, new String[]{DatabaseHelper.COLUMN_ID}, DatabaseHelper.COLUMN_EMAIL + " = ?", new String[]{email}, null, null, null);
@@ -189,7 +191,7 @@ public class UserRepository {
             result = db.insert(DatabaseHelper.TABLE_USERS, null, values);
         }
         cursor.close();
-        db.close();
+//        db.close();
         return result;
     }
 
@@ -228,6 +230,7 @@ public class UserRepository {
         values.put(DatabaseHelper.COLUMN_CREATED_AT, dbHelper.getCurrentDateTime());
         values.put(DatabaseHelper.COLUMN_UPDATED_AT, dbHelper.getCurrentDateTime());
         values.put(DatabaseHelper.COLUMN_PASSWORD, password);
+        values.put(DatabaseHelper.COLUMN_SOURCE, "new");
 
         long id = db.insert(DatabaseHelper.TABLE_USERS, null, values);
         db.close();

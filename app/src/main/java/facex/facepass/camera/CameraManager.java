@@ -229,6 +229,33 @@ public class CameraManager implements CameraPreview.CameraPreviewListener {
         }
     }
 
+    // Add this method to the CameraManager class
+    // Add this method to the CameraManager class
+    // Add this method to the CameraManager class
+    public void takePicture() {
+        if (camera != null && state == CameraState.OPENED) {
+            try {
+                Camera.Parameters params = camera.getParameters();
+                params.set("camera-sound", "false"); // Disable the capture sound
+                camera.setParameters(params);
+
+                camera.takePicture(null, null, new Camera.PictureCallback() {
+                    @Override
+                    public void onPictureTaken(byte[] data, Camera camera) {
+                        if (listener != null) {
+                            listener.onPictureTaken(new CameraPreviewData(data, previewSize.width, previewSize.height, previewDegreen, front));
+                        }
+                        camera.startPreview(); // Restart the preview after taking the picture
+                    }
+                });
+            } catch (Exception e) {
+                Log.e("CameraManager", "takePicture failed: " + e.getMessage());
+            }
+        } else {
+            Log.e("CameraManager", "Camera is not ready to take a picture");
+        }
+    }
+
     public void finalRelease() {
         this.listener = null;
         this.cameraPreview = null;

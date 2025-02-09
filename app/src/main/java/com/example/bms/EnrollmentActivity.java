@@ -30,6 +30,7 @@ import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.Toolbar;
+import androidx.core.view.WindowInsetsCompat;
 import androidx.core.widget.NestedScrollView;
 
 import android.os.Environment;
@@ -59,6 +60,7 @@ import java.util.Arrays;
 import java.util.Calendar;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Objects;
 
 import cn.pedant.SweetAlert.SweetAlertDialog;
 import facex.facepass.InitFacePassHandler;
@@ -154,6 +156,8 @@ public class EnrollmentActivity extends AppCompatActivity {
         setContentView(binding.getRoot());
 
         mProgressDialog = new ProgressDialog(this);
+
+        Objects.requireNonNull(getWindow().getInsetsController()).hide(WindowInsetsCompat.Type.systemBars());
 
 
         dbHelper = new DatabaseHelper(this);

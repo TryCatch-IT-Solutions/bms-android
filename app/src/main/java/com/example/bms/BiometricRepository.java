@@ -51,7 +51,7 @@ public class BiometricRepository {
         }
 
         cursor.close();
-        db.close();
+//        db.close();
         return result;
     }
 

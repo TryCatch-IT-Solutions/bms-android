@@ -8,6 +8,7 @@ import android.graphics.ImageFormat;
 import android.graphics.Matrix;
 import android.graphics.YuvImage;
 import android.os.Bundle;
+import android.util.Log;
 import android.view.View;
 import android.widget.FrameLayout;
 import android.widget.RelativeLayout;
@@ -111,6 +112,7 @@ public class CameraActivity extends CameraSettingActivity implements CameraManag
                             );
                         }
                         String path = saveToGallery(bitmap);
+                        Log.d("GalleryPath: ",path);
                         runOnUiThread(new Runnable() {
                             @Override
                             public void run() {

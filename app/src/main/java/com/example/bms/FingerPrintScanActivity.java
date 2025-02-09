@@ -52,7 +52,7 @@ public class FingerPrintScanActivity extends AppCompatActivity {
     private ActivityFingerPrintScanBinding binding;
     private FingerSDK fingerSDK;
 
-    ImageView[] fingerImageViews = new ImageView[5];
+    ImageView[] fingerImageViews = new ImageView[10];
     Button scan_finger, save_finger;
 
     private boolean deviceModelNameCheck = false;
@@ -96,6 +96,12 @@ public class FingerPrintScanActivity extends AppCompatActivity {
         fingerImageViews[2] = findViewById(R.id.fingerIv_3);
         fingerImageViews[3] = findViewById(R.id.fingerIv_4);
         fingerImageViews[4] = findViewById(R.id.fingerIv_5);
+        fingerImageViews[5] = findViewById(R.id.fingerIv_6);
+        fingerImageViews[6] = findViewById(R.id.fingerIv_7);
+        fingerImageViews[7] = findViewById(R.id.fingerIv_8);
+        fingerImageViews[8] = findViewById(R.id.fingerIv_9);
+        fingerImageViews[9] = findViewById(R.id.fingerIv_10);
+
         scan_finger = findViewById(R.id.scan_finger);
         save_finger = findViewById(R.id.save_finger);
 
@@ -244,13 +250,25 @@ public class FingerPrintScanActivity extends AppCompatActivity {
     @Override
     public void onResume() {
         super.onResume();
-        fingerSDK.launch();
+        if(fingerSDK != null) {
+            fingerSDK.launch();
+        }
     }
 
     @Override
     public void onPause() {
         super.onPause();
-        fingerSDK.release();
+        if(fingerSDK != null) {
+            fingerSDK.release();
+        }
+    }
+
+    @Override
+    public void onDestroy() {
+        super.onDestroy();
+        if(fingerSDK != null) {
+            fingerSDK.release();
+        }
     }
 
     private void showDialog() {

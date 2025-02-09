@@ -196,13 +196,141 @@
 
                     </LinearLayout>
 
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:gravity="center"
+                        android:orientation="horizontal"
+                        android:paddingVertical="20dp">
+
+                        <FrameLayout
+                            android:layout_width="0dp"
+                            android:layout_height="80dp"
+                            android:layout_weight="1"
+                            android:layout_margin="4dp">
+
+                            <ImageView
+                                android:id="@+id/fingerIv_6"
+                                android:layout_width="match_parent"
+                                android:layout_height="match_parent"
+                                android:scaleType="fitCenter"
+                                android:contentDescription="Five Finger Scan"
+                                android:src="@drawable/finger_80" />
+
+                            <ImageButton
+                                android:id="@+id/reset_button_6"
+                                android:layout_width="24dp"
+                                android:layout_height="24dp"
+                                android:layout_gravity="end|bottom"
+                                android:background="?attr/selectableItemBackgroundBorderless"
+                                android:src="@drawable/reset_24"
+                                android:contentDescription="Reset Finger 6" />
+                        </FrameLayout>
+
+                        <FrameLayout
+                            android:layout_width="0dp"
+                            android:layout_height="80dp"
+                            android:layout_weight="1"
+                            android:layout_margin="4dp">
+
+                            <ImageView
+                                android:id="@+id/fingerIv_7"
+                                android:layout_width="match_parent"
+                                android:layout_height="match_parent"
+                                android:scaleType="fitCenter"
+                                android:contentDescription="Five Finger Scan"
+                                android:src="@drawable/finger_80" />
+
+                            <ImageButton
+                                android:id="@+id/reset_button_7"
+                                android:layout_width="24dp"
+                                android:layout_height="24dp"
+                                android:layout_gravity="end|bottom"
+                                android:background="?attr/selectableItemBackgroundBorderless"
+                                android:src="@drawable/reset_24"
+                                android:contentDescription="Reset Finger 7" />
+                        </FrameLayout>
+
+                        <FrameLayout
+                            android:layout_width="0dp"
+                            android:layout_height="80dp"
+                            android:layout_weight="1"
+                            android:layout_margin="4dp">
+
+                            <ImageView
+                                android:id="@+id/fingerIv_8"
+                                android:layout_width="match_parent"
+                                android:layout_height="match_parent"
+                                android:scaleType="fitCenter"
+                                android:contentDescription="Five Finger Scan"
+                                android:src="@drawable/finger_80" />
+
+                            <ImageButton
+                                android:id="@+id/reset_button_8"
+                                android:layout_width="24dp"
+                                android:layout_height="24dp"
+                                android:layout_gravity="end|bottom"
+                                android:background="?attr/selectableItemBackgroundBorderless"
+                                android:src="@drawable/reset_24"
+                                android:contentDescription="Reset Finger 8" />
+                        </FrameLayout>
+
+                        <FrameLayout
+                            android:layout_width="0dp"
+                            android:layout_height="80dp"
+                            android:layout_weight="1"
+                            android:layout_margin="4dp">
+
+                            <ImageView
+                                android:id="@+id/fingerIv_9"
+                                android:layout_width="match_parent"
+                                android:layout_height="match_parent"
+                                android:scaleType="fitCenter"
+                                android:contentDescription="Five Finger Scan"
+                                android:src="@drawable/finger_80" />
+
+                            <ImageButton
+                                android:id="@+id/reset_button_9"
+                                android:layout_width="24dp"
+                                android:layout_height="24dp"
+                                android:layout_gravity="end|bottom"
+                                android:background="?attr/selectableItemBackgroundBorderless"
+                                android:src="@drawable/reset_24"
+                                android:contentDescription="Reset Finger 9" />
+                        </FrameLayout>
+
+                        <FrameLayout
+                            android:layout_width="0dp"
+                            android:layout_height="80dp"
+                            android:layout_weight="1"
+                            android:layout_margin="4dp">
+
+                            <ImageView
+                                android:id="@+id/fingerIv_10"
+                                android:layout_width="match_parent"
+                                android:layout_height="match_parent"
+                                android:scaleType="fitCenter"
+                                android:contentDescription="Five Finger Scan"
+                                android:src="@drawable/finger_80" />
+
+                            <ImageButton
+                                android:id="@+id/reset_button_10"
+                                android:layout_width="24dp"
+                                android:layout_height="24dp"
+                                android:layout_gravity="end|bottom"
+                                android:background="?attr/selectableItemBackgroundBorderless"
+                                android:src="@drawable/reset_24"
+                                android:contentDescription="Reset Finger 10" />
+                        </FrameLayout>
+
+                    </LinearLayout>
 
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="8dp"
                         android:gravity="center"
-                        android:text="Scan Primary Finger Five Times"
+                        android:text="Scan Fingerprint Access"
                         android:textColor="@color/black"
                         android:textSize="16sp"
                         android:textStyle="bold" />

@@ -29,7 +29,7 @@ public class AnnouncementRepository {
             exists = cursor.getInt(0) > 0;
         }
         cursor.close();
-        db.close();
+        //db.close();
         return exists;
     }
 
@@ -44,7 +44,7 @@ public class AnnouncementRepository {
         values.put(DatabaseHelper.COLUMN_UPDATED_AT, dbHelper.getCurrentDateTime());
 
         long id = db.insert(DatabaseHelper.TABLE_ANNOUNCEMENTS, null, values);
-        db.close();
+        //db.close();
         return id;
     }
 
@@ -53,9 +53,12 @@ public class AnnouncementRepository {
         SQLiteDatabase db = dbHelper.getReadableDatabase();
         String query = "SELECT " + DatabaseHelper.COLUMN_TITLE + ", " +
                 DatabaseHelper.COLUMN_MESSAGE + ", " +
+                DatabaseHelper.COLUMN_USER_ID + ", " +
                 DatabaseHelper.COLUMN_EXPIRATION +
                 " FROM " + DatabaseHelper.TABLE_ANNOUNCEMENTS +
-                " WHERE " + DatabaseHelper.COLUMN_USER_ID + " = ?";
+                " WHERE (" + DatabaseHelper.COLUMN_USER_ID + " = ? OR " + DatabaseHelper.COLUMN_USER_ID + " IS NULL) AND " +
+                DatabaseHelper.COLUMN_EXPIRATION + " > datetime('now')" +
+                " ORDER BY " + DatabaseHelper.COLUMN_USER_ID + " IS NULL DESC";
         String[] selectionArgs = { String.valueOf(userId) };
 
         Cursor cursor = db.rawQuery(query, selectionArgs);
@@ -66,11 +69,12 @@ public class AnnouncementRepository {
                 String title = cursor.getString(cursor.getColumnIndexOrThrow(DatabaseHelper.COLUMN_TITLE));
                 String message = cursor.getString(cursor.getColumnIndexOrThrow(DatabaseHelper.COLUMN_MESSAGE));
                 String expiration = cursor.getString(cursor.getColumnIndexOrThrow(DatabaseHelper.COLUMN_EXPIRATION));
-                announcements[i++] = new AnnouncementModel(title, message, expiration);
+                long user_id = cursor.getLong(cursor.getColumnIndexOrThrow(DatabaseHelper.COLUMN_USER_ID));
+                announcements[i++] = new AnnouncementModel(title, message, expiration, String.valueOf(user_id));
             } while (cursor.moveToNext());
         }
         cursor.close();
-        db.close();
+        //db.close();
         return announcements;
     }
 

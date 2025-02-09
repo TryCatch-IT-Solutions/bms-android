@@ -21,7 +21,7 @@ import java.util.List;
 public class DatabaseHelper extends SQLiteOpenHelper {
 
     private static final String DATABASE_NAME = "bms.db";
-    private static final int DATABASE_VERSION = 24;
+    private static final int DATABASE_VERSION = 32;
 
     public static final String TABLE_USERS = "users";
     public static final String COLUMN_ID = "id";
@@ -52,41 +52,42 @@ public class DatabaseHelper extends SQLiteOpenHelper {
     public static final String COLUMN_DELETED_AT = "deleted_at";
     public static final String COLUMN_DELETED_BY = "deleted_by";
 
-    private static final String TABLE_CREATE_USERS = String.format(
-            "CREATE TABLE %s (" +
-                    "%s INTEGER PRIMARY KEY AUTOINCREMENT, " +
-                    "%s INTEGER, " +
-                    "%s TEXT CHECK(%s IN ('superadmin', 'groupadmin', 'employee')), " +
-                    "%s TEXT, " +
-                    "%s TEXT, " +
-                    "%s TEXT, " +
-                    "%s DOUBLE, " +
-                    "%s DOUBLE, " +
-                    "%s TEXT, " +
-                    "%s TEXT, " +
-                    "%s TEXT, " +
-                    "%s TEXT, " +
-                    "%s TEXT, " +
-                    "%s DATE, " +
-                    "%s TEXT, " +
-                    "%s INTEGER, " +
-                    "%s TEXT, " +
-                    "%s TEXT, " +
-                    "%s TEXT, " +
-                    "%s TEXT, " +
-                    "%s TEXT, " +
-                    "%s TEXT, " +
-                    "%s BOOLEAN, " +
-                    "%s DATETIME, " +
-                    "%s DATETIME, " +
-                    "%s DATETIME, " +
-                    "%s INTEGER);",
-            TABLE_USERS, COLUMN_ID, COLUMN_GROUP_ID, COLUMN_ROLE, COLUMN_ROLE, COLUMN_FIRST_NAME, COLUMN_MIDDLE_NAME, COLUMN_LAST_NAME, COLUMN_LAT, COLUMN_LON,
-            COLUMN_ADDRESS1, COLUMN_ADDRESS2, COLUMN_BARANGAY, COLUMN_MUNICIPALITY, COLUMN_PROVINCE, COLUMN_BIRTH_DATE, COLUMN_GENDER, COLUMN_ZIP_CODE,
-            COLUMN_EMAIL, COLUMN_PHONE_NUMBER, COLUMN_EMERGENCY_CONTACT_NAME, COLUMN_EMERGENCY_CONTACT_NO, COLUMN_PASSWORD, COLUMN_STATUS, COLUMN_IS_SYNCED,
-            COLUMN_CREATED_AT, COLUMN_UPDATED_AT, COLUMN_DELETED_AT, COLUMN_DELETED_BY
-    );
-
+    public static final String COLUMN_SOURCE = "source";
+   private static final String TABLE_CREATE_USERS = String.format(
+           "CREATE TABLE %s (" +
+                   "%s INTEGER PRIMARY KEY AUTOINCREMENT, " +
+                   "%s INTEGER, " +
+                   "%s TEXT CHECK(%s IN ('superadmin', 'groupadmin', 'employee')), " +
+                   "%s TEXT, " +
+                   "%s TEXT, " +
+                   "%s TEXT, " +
+                   "%s DOUBLE, " +
+                   "%s DOUBLE, " +
+                   "%s TEXT, " +
+                   "%s TEXT, " +
+                   "%s TEXT, " +
+                   "%s TEXT, " +
+                   "%s TEXT, " +
+                   "%s DATE, " +
+                   "%s TEXT, " +
+                   "%s INTEGER, " +
+                   "%s TEXT, " +
+                   "%s TEXT, " +
+                   "%s TEXT, " +
+                   "%s TEXT, " +
+                   "%s TEXT, " +
+                   "%s TEXT, " +
+                   "%s TEXT, " + // Added source column
+                   "%s BOOLEAN, " +
+                   "%s DATETIME, " +
+                   "%s DATETIME, " +
+                   "%s DATETIME, " +
+                   "%s INTEGER);",
+           TABLE_USERS, COLUMN_ID, COLUMN_GROUP_ID, COLUMN_ROLE, COLUMN_ROLE, COLUMN_FIRST_NAME, COLUMN_MIDDLE_NAME, COLUMN_LAST_NAME, COLUMN_LAT, COLUMN_LON,
+           COLUMN_ADDRESS1, COLUMN_ADDRESS2, COLUMN_BARANGAY, COLUMN_MUNICIPALITY, COLUMN_PROVINCE, COLUMN_BIRTH_DATE, COLUMN_GENDER, COLUMN_ZIP_CODE,
+           COLUMN_EMAIL, COLUMN_PHONE_NUMBER, COLUMN_EMERGENCY_CONTACT_NAME, COLUMN_EMERGENCY_CONTACT_NO, COLUMN_PASSWORD, COLUMN_STATUS, COLUMN_SOURCE, COLUMN_IS_SYNCED,
+           COLUMN_CREATED_AT, COLUMN_UPDATED_AT, COLUMN_DELETED_AT, COLUMN_DELETED_BY
+   );
 
     public static final String TABLE_FINGERPRINTS = "fingerprints";
     public static final String COLUMN_BIOMETRIC_ID = "biometric_id";
@@ -95,6 +96,8 @@ public class DatabaseHelper extends SQLiteOpenHelper {
     public static final String TABLE_BIOMETRICS = "biometrics";
     public static final String COLUMN_USER_ID = "user_id";
     public static final String COLUMN_TYPE = "type";
+    public static final String COLUMN_LATITUDE = "latitude";
+    public static final String COLUMN_LONGITUDE = "longitude";
 
     public static final String TABLE_GROUPS = "groups";
     public static final String COLUMN_NAME = "name";
@@ -149,34 +152,57 @@ public class DatabaseHelper extends SQLiteOpenHelper {
                     "%s TEXT, " +
                     "%s DOUBLE, " +
                     "%s DOUBLE, " +
+                    "%s BOOLEAN DEFAULT 0, " +
+                    "%s DATETIME, " +
+                    "%s DATETIME, " +
+                    "%s TEXT, " +
+                    "%s BOOLEAN DEFAULT 0, " +
+                    "%s BOOLEAN DEFAULT 0, " +
+                    "%s BOOLEAN DEFAULT 0, " +
+                    "%s BOOLEAN DEFAULT 0, " +
+                    "%s BOOLEAN DEFAULT 0, " +
+                    "%s BOOLEAN DEFAULT 0, " +
+                    "%s BOOLEAN DEFAULT 0, " +
+                    "%s BOOLEAN DEFAULT 0, " +
                     "%s DATETIME, " +
                     "%s DATETIME, " +
                     "%s DATETIME, " +
-                    "%s DATETIME, " +
-                    "%s INTEGER);",
-            TABLE_DEVICES, COLUMN_ID, COLUMN_GROUP_ID, COLUMN_MODEL, COLUMN_SERIAL_NO, COLUMN_LAT,
-            COLUMN_LON, COLUMN_REGISTERED_AT, COLUMN_CREATED_AT, COLUMN_UPDATED_AT, COLUMN_DELETED_AT, COLUMN_DELETED_BY
+                    "%s INTEGER, " +
+                    "%s BOOLEAN DEFAULT 0);",
+            TABLE_DEVICES, COLUMN_ID, COLUMN_GROUP_ID, COLUMN_MODEL, COLUMN_SERIAL_NO, COLUMN_LAT, COLUMN_LON,
+            "is_online", "last_sync", "last_activity", "logo_url", "manual_time_entry", "check_in", "check_out",
+            "break_in", "break_out", "overtime_in", "overtime_out", COLUMN_REGISTERED_AT, COLUMN_CREATED_AT,
+            COLUMN_UPDATED_AT, COLUMN_DELETED_AT, COLUMN_DELETED_BY, "is_synced"
     );
 
     public static final String TABLE_TIME_ENTRIES = "time_entries";
     public static final String COLUMN_DATETIME = "datetime";
     public static final String COLUMN_METADATA = "metadata";
+    public static final String COLUMN_SNAPSHOT = "snapshot";
 
     private static final String TABLE_CREATE_TIME_ENTRIES = String.format(
             "CREATE TABLE %s (" +
                     "%s INTEGER PRIMARY KEY AUTOINCREMENT, " +
                     "%s INTEGER, " +
-                    "%s TEXT CHECK(%s IN ('time-in', 'time-out', 'break-in', 'break-out', 'ot-in', 'ot-out')), " +
+                    "%s TEXT, " + // Type can be nullable
                     "%s DATETIME, " +
                     "%s TEXT, " +
                     "%s BOOLEAN, " +
+                    "%s DOUBLE, " + // Latitude
+                    "%s DOUBLE, " + // Longitude
+                    "%s TEXT, " + // Snapshot
+                    "%s TEXT, " + // Serial number
                     "%s DATETIME, " +
                     "%s DATETIME, " +
                     "%s DATETIME, " +
                     "%s INTEGER);",
-            TABLE_TIME_ENTRIES, COLUMN_ID, COLUMN_USER_ID, COLUMN_TYPE, COLUMN_TYPE, COLUMN_DATETIME, COLUMN_METADATA, COLUMN_IS_SYNCED,
+            TABLE_TIME_ENTRIES, COLUMN_ID, COLUMN_USER_ID, COLUMN_TYPE, COLUMN_DATETIME, COLUMN_METADATA, COLUMN_IS_SYNCED,
+            COLUMN_LATITUDE, COLUMN_LONGITUDE,
+            COLUMN_SNAPSHOT,
+            COLUMN_SERIAL_NO,
             COLUMN_CREATED_AT, COLUMN_UPDATED_AT, COLUMN_DELETED_AT, COLUMN_DELETED_BY
     );
+
     public static final String TABLE_ANNOUNCEMENTS = "announcements";
     public static final String COLUMN_TITLE = "title";
     public static final String COLUMN_MESSAGE = "message";
@@ -364,28 +390,39 @@ public class DatabaseHelper extends SQLiteOpenHelper {
     }
 
 
-    public void insertOrUpdateDevice(long groupId, String model, String serialNo, double lat, double lon, String registeredAt) {
+    public void insertOrUpdateDevice(long groupId, String model, String serialNo, double lat, double lon, String registeredAt, boolean isOnline, String lastSync, String lastActivity, String logoUrl, boolean manualTimeEntry, boolean checkIn, boolean checkOut, boolean breakIn, boolean breakOut, boolean overtimeIn, boolean overtimeOut) {
         SQLiteDatabase db = this.getWritableDatabase();
         ContentValues values = new ContentValues();
 
-//        check if serialNo already exists
-        Cursor cursor = db.rawQuery("SELECT * FROM " + TABLE_DEVICES + " WHERE " + COLUMN_SERIAL_NO + " = '" + serialNo + "'", null);
+        // Check if serialNo already exists
+        Cursor cursor = db.rawQuery("SELECT * FROM " + TABLE_DEVICES + " WHERE " + COLUMN_SERIAL_NO + " = ?", new String[]{serialNo});
 
         values.put(COLUMN_GROUP_ID, groupId);
         values.put(COLUMN_MODEL, model);
         values.put(COLUMN_SERIAL_NO, serialNo);
         values.put(COLUMN_LAT, lat);
         values.put(COLUMN_LON, lon);
-        values.put(COLUMN_REGISTERED_AT, getCurrentDateTime());
+        values.put(COLUMN_REGISTERED_AT, registeredAt);
         values.put(COLUMN_UPDATED_AT, getCurrentDateTime());
+        values.put("is_online", isOnline);
+        values.put("last_sync", lastSync);
+        values.put("last_activity", lastActivity);
+        values.put("logo_url", logoUrl);
+        values.put("manual_time_entry", manualTimeEntry);
+        values.put("check_in", checkIn);
+        values.put("check_out", checkOut);
+        values.put("break_in", breakIn);
+        values.put("break_out", breakOut);
+        values.put("overtime_in", overtimeIn);
+        values.put("overtime_out", overtimeOut);
 
         if (cursor.moveToFirst()) {
             db.update(TABLE_DEVICES, values, COLUMN_SERIAL_NO + " = ?", new String[]{serialNo});
-            return;
         } else {
             values.put(COLUMN_CREATED_AT, getCurrentDateTime());
             db.insertWithOnConflict(TABLE_DEVICES, null, values, SQLiteDatabase.CONFLICT_REPLACE);
         }
+        cursor.close();
         db.close();
     }
 
@@ -950,6 +987,7 @@ public class DatabaseHelper extends SQLiteOpenHelper {
         db.execSQL("DROP TABLE IF EXISTS " + TABLE_GROUPS);
         db.execSQL("DROP TABLE IF EXISTS " + TABLE_DEVICES);
         db.execSQL("DROP TABLE IF EXISTS " + TABLE_TIME_ENTRIES);
+        db.execSQL("DROP TABLE IF EXISTS " + TABLE_ANNOUNCEMENTS);
         onCreate(db);
     }
 }

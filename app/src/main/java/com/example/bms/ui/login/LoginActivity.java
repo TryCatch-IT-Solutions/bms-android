@@ -1,14 +1,18 @@
 package com.example.bms.ui.login;
 
+import android.Manifest;
 import android.annotation.SuppressLint;
 import android.app.Activity;
 
+import androidx.core.app.ActivityCompat;
 import androidx.lifecycle.Observer;
 import androidx.lifecycle.ViewModelProvider;
 
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.content.pm.PackageManager;
+import android.os.Build;
 import android.os.Bundle;
 
 import androidx.annotation.Nullable;
@@ -35,6 +39,7 @@ import com.example.bms.BiometricRepository;
 import com.example.bms.Configuration;
 import com.example.bms.DatabaseHelper;
 import com.example.bms.DeviceRegistration;
+import com.example.bms.DeviceRepository;
 import com.example.bms.EncryptionUtil;
 import com.example.bms.EndpointRegistration;
 import com.example.bms.FingerprintRepository;
@@ -62,7 +67,9 @@ import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -74,11 +81,10 @@ public class LoginActivity extends AppCompatActivity {
     private LoginViewModel loginViewModel;
     private ActivityLoginBinding binding;
 
+    long modelGroupId;
 
     private void syncUsers(){
         try {
-            Log.d("LoginAct234",App.BASE_URL + "/sync/users/login");
-
             URL url = new URL(App.BASE_URL + "/sync/users/login");
             HttpURLConnection conn = (HttpURLConnection) url.openConnection();
             conn.setRequestMethod("GET");
@@ -231,6 +237,30 @@ public class LoginActivity extends AppCompatActivity {
         }
     }
 
+    private void requestAllPermissions() {
+        String[] permissions = {
+                android.Manifest.permission.CAMERA,
+                android.Manifest.permission.WRITE_EXTERNAL_STORAGE,
+                android.Manifest.permission.READ_EXTERNAL_STORAGE,
+                android.Manifest.permission.MANAGE_EXTERNAL_STORAGE,
+                android.Manifest.permission.ACCESS_FINE_LOCATION,
+                android.Manifest.permission.ACCESS_COARSE_LOCATION,
+                android.Manifest.permission.READ_PHONE_STATE,
+                android.Manifest.permission.CALL_PHONE
+        };
+
+        List<String> permissionsToRequest = new ArrayList<>();
+        for (String permission : permissions) {
+            if (ActivityCompat.checkSelfPermission(this, permission) != PackageManager.PERMISSION_GRANTED) {
+                permissionsToRequest.add(permission);
+            }
+        }
+
+        if (!permissionsToRequest.isEmpty()) {
+            ActivityCompat.requestPermissions(this, permissionsToRequest.toArray(new String[0]), 1);
+        }
+    }
+
     @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -248,6 +278,8 @@ public class LoginActivity extends AppCompatActivity {
             ExecutorService executor = Executors.newSingleThreadExecutor();
             executor.execute(this::syncGroups);
         }
+
+        requestAllPermissions();
 
         final EditText usernameEditText = binding.username;
         final EditText passwordEditText = binding.password;
@@ -347,8 +379,6 @@ public class LoginActivity extends AppCompatActivity {
     }
 
     private void updateUiWithUser(LoggedInUserView model) throws Exception {
-        String welcome = getString(R.string.welcome) + model.getDisplayName();
-        Toast.makeText(getApplicationContext(), welcome, Toast.LENGTH_LONG).show();
 
         if(getAccess().equals("offline")){
             EncryptionUtil.generateKey();
@@ -409,7 +439,11 @@ public class LoginActivity extends AppCompatActivity {
 
                 if(model.getRole().equals("groupadmin")) {
 
+                    DeviceRepository deviceRepository = new DeviceRepository(LoginActivity.this);
+                    modelGroupId = deviceRepository.getModelGroupId(Build.MODEL);
+
                     Log.d("LognActivity", "Group ID     : " + model.getGroupId());
+
                     if(model.getGroupId() == 0){
 
                         new Handler(Looper.getMainLooper()).postDelayed(new Runnable() {
@@ -421,8 +455,21 @@ public class LoginActivity extends AppCompatActivity {
                                         .show();
                             }
                         }, 100);
+                        return;
+                    }
 
-                        success = false;
+
+                    if(modelGroupId != -1 && modelGroupId != model.getGroupId()){
+                        new Handler(Looper.getMainLooper()).postDelayed(new Runnable() {
+                            @Override
+                            public void run() {
+                                new SweetAlertDialog(LoginActivity.this, SweetAlertDialog.ERROR_TYPE)
+                                        .setTitleText("Device Group & Model Mismatch")
+                                        .setContentText("You are not allowed to login to this device.")
+                                        .show();
+                            }
+                        }, 100);
+
                         return;
                     }
 
@@ -470,8 +517,15 @@ public class LoginActivity extends AppCompatActivity {
             boolean finalSuccess = success;
             handler.post(() -> {
                 if (finalSuccess) {
+
                     // Handle the result on the main thread
                     Log.d("LoginActivity", "Login successful");
+                    if(modelGroupId != -1 && modelGroupId != model.getGroupId()){
+                        startActivity(new Intent(LoginActivity.this, GroupActivity.class));
+                        finish();
+                        return;
+                    }
+
                     startActivity(new Intent(LoginActivity.this, SplashScreen.class));
                     finish();
                 } else {
