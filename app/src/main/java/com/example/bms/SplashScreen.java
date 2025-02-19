@@ -129,8 +129,8 @@ public class SplashScreen extends AppCompatActivity {
                     startActivity(new Intent(SplashScreen.this, GroupActivity.class));
                     finish();
                 }else{
-//                    startActivity(new Intent(SplashScreen.this, TimeEntryRegister.class));
-                    startActivity(new Intent(SplashScreen.this, MainActivity.class));
+                    startActivity(new Intent(SplashScreen.this, TimeEntryRegister.class));
+//                    startActivity(new Intent(SplashScreen.this, MainActivity.class));
 //                    startActivity(new Intent(SplashScreen.this, EndpointRegistration.class));
                     finish();
                 }
