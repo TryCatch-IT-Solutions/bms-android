@@ -189,7 +189,7 @@ public class TimeEntryRegister extends CameraSettingActivity implements CameraMa
         new Handler(Looper.getMainLooper()).postDelayed(new Runnable() {
             @Override
             public void run() {
-                if(hasPreview || clockLayout.getVisibility() == View.VISIBLE || !allowCapture || sweetAlertDialog.isShowing()){
+                if (hasPreview || clockLayout.getVisibility() == View.VISIBLE || !allowCapture || sweetAlertDialog.isShowing()) {
                     mFeedFrameThread.resetLastFeedTimeSaver();
                     isLockScreen = false;
                     Log.d("TimeEntryRegister", "Screen already on");
@@ -242,8 +242,7 @@ public class TimeEntryRegister extends CameraSettingActivity implements CameraMa
 
     private String getStrangerDetection() {
         SharedPreferences sharedPreferences = getSharedPreferences("device_settings", Context.MODE_PRIVATE);
-        String strangerDetection = sharedPreferences.getString("STRANGER_DETECTION", "on");
-        return strangerDetection;
+        return sharedPreferences.getString("STRANGER_DETECTION", "on");
     }
 
     private String getSecondaryLogo() {
@@ -275,6 +274,7 @@ public class TimeEntryRegister extends CameraSettingActivity implements CameraMa
 
     private void checkPassword(String password) throws Exception {
 //        BCrypt.checkpw(password, Objects.requireNonNull(getUserHashedPassword()))
+        Log.d("TimeEntryRegister", "Checking password: " + password + " " + getUserPassword());
         if (password.equals(getUserPassword())) {
 
             allowCapture = false;
@@ -305,7 +305,7 @@ public class TimeEntryRegister extends CameraSettingActivity implements CameraMa
             runOnUiThread(new Runnable() {
                 @Override
                 public void run() {
-                    if(sweetAlertDialog != null){
+                    if (sweetAlertDialog != null) {
                         sweetAlertDialog.dismiss();
                     }
                     sweetAlertDialog = new SweetAlertDialog(TimeEntryRegister.this, SweetAlertDialog.ERROR_TYPE).setTitleText("Wrong Password").setContentText("Please try again.");
@@ -363,12 +363,16 @@ public class TimeEntryRegister extends CameraSettingActivity implements CameraMa
             return insets;
         });
 
+        ((App) getApplication()).getAnnouncements();
+
         if (getWindow().hasFeature(Window.FEATURE_ACTION_BAR)) {
             getWindow().invalidatePanelMenu(Window.FEATURE_ACTION_BAR);
         }
 
         fingerprintScoreThreshold = fingerprintScoreThreshold();
         detectStranger = getStrangerDetection();
+
+
 
         devicePolicyManager = (DevicePolicyManager) getSystemService(Context.DEVICE_POLICY_SERVICE);
         adminComponent = new ComponentName(this, MyAdminReceiver.class);
@@ -451,7 +455,7 @@ public class TimeEntryRegister extends CameraSettingActivity implements CameraMa
         }
 
         Log.d("TimeEntryRegister", "Access: " + getAccess() + ".");
-        if(getAccess().equals("offline") && reminderLabel != null) {
+        if (getAccess().equals("offline") && reminderLabel != null) {
             reminderLabel.setVisibility(View.GONE);
         }
 
@@ -528,6 +532,15 @@ public class TimeEntryRegister extends CameraSettingActivity implements CameraMa
         });
 
         deviceModelNameCheck = FingerSDK.licenceDevice();
+
+        runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                sweetAlertDialog = new SweetAlertDialog(TimeEntryRegister.this, SweetAlertDialog.PROGRESS_TYPE).setTitleText("Loading Scanner");
+                sweetAlertDialog.show();
+            }
+        });
+
         fingerSDK = new FingerSDK(TimeEntryRegister.this, new OnSdkInitListener() {
             @Override
             public void initResult(int i, String s) {
@@ -539,8 +552,10 @@ public class TimeEntryRegister extends CameraSettingActivity implements CameraMa
                             return;
                         }
 
-                        if (i != 1) {
+                        if (i != 1 && i != 0) {
                             fingerSDK.launch();
+                        } else {
+                            sweetAlertDialog.dismiss();
                         }
                     }
                 });
@@ -801,34 +816,54 @@ public class TimeEntryRegister extends CameraSettingActivity implements CameraMa
 
     private void getTrackerSwitches() {
 
+        sharedPreferences = getSharedPreferences(Configuration.PREFS_NAME, Context.MODE_PRIVATE);
+
         if (!sharedPreferences.getBoolean(Configuration.KEY_TIME_REGISTER + "_check_in", false)) {
             CardView cardView = (CardView) findViewById(R.id.check_in);
             cardView.setCardBackgroundColor(ContextCompat.getColor(this, R.color.gray_btn_bg_color));
+        } else {
+            CardView cardView = (CardView) findViewById(R.id.check_in);
+            cardView.setCardBackgroundColor(ContextCompat.getColor(this, R.color.green));
         }
 
         if (!sharedPreferences.getBoolean(Configuration.KEY_TIME_REGISTER + "_check_out", false)) {
             CardView cardView = (CardView) findViewById(R.id.check_out);
             cardView.setCardBackgroundColor(ContextCompat.getColor(this, R.color.gray_btn_bg_color));
+        } else {
+            CardView cardView = (CardView) findViewById(R.id.check_out);
+            cardView.setCardBackgroundColor(ContextCompat.getColor(this, R.color.error));
         }
 
         if (!sharedPreferences.getBoolean(Configuration.KEY_TIME_REGISTER + "_break_in", false)) {
             CardView cardView = (CardView) findViewById(R.id.break_in);
             cardView.setCardBackgroundColor(ContextCompat.getColor(this, R.color.gray_btn_bg_color));
+        } else {
+            CardView cardView = (CardView) findViewById(R.id.break_in);
+            cardView.setCardBackgroundColor(ContextCompat.getColor(this, R.color.amber));
         }
 
         if (!sharedPreferences.getBoolean(Configuration.KEY_TIME_REGISTER + "_break_out", false)) {
             CardView cardView = (CardView) findViewById(R.id.break_out);
             cardView.setCardBackgroundColor(ContextCompat.getColor(this, R.color.gray_btn_bg_color));
+        } else {
+            CardView cardView = (CardView) findViewById(R.id.break_out);
+            cardView.setCardBackgroundColor(ContextCompat.getColor(this, R.color.error_stroke_color));
         }
 
         if (!sharedPreferences.getBoolean(Configuration.KEY_TIME_REGISTER + "_overtime_in", false)) {
             CardView cardView = (CardView) findViewById(R.id.overtime_in);
             cardView.setCardBackgroundColor(ContextCompat.getColor(this, R.color.gray_btn_bg_color));
+        } else {
+            CardView cardView = (CardView) findViewById(R.id.overtime_in);
+            cardView.setCardBackgroundColor(ContextCompat.getColor(this, R.color.fuchsia));
         }
 
         if (!sharedPreferences.getBoolean(Configuration.KEY_TIME_REGISTER + "_overtime_out", false)) {
             CardView cardView = (CardView) findViewById(R.id.overtime_out);
             cardView.setCardBackgroundColor(ContextCompat.getColor(this, R.color.gray_btn_bg_color));
+        } else {
+            CardView cardView = (CardView) findViewById(R.id.overtime_out);
+            cardView.setCardBackgroundColor(ContextCompat.getColor(this, R.color.rose));
         }
 
     }
@@ -890,6 +925,8 @@ public class TimeEntryRegister extends CameraSettingActivity implements CameraMa
         SharedPreferences sharedPreferences = getSharedPreferences(GroupActivity.PREFS_NAME, Context.MODE_PRIVATE);
         String groupId = sharedPreferences.getString(GroupActivity.KEY_SELECTED_GROUP, null);
 
+        Log.d("TimeEntryRegister", "Group ID: " + groupId);
+
         if (groupId != null) {
             // Get fingerprints by group ID
             fingerprints = fingerprintRepository.getFingerprintsByGroupId(Long.parseLong(groupId));
@@ -938,25 +975,26 @@ public class TimeEntryRegister extends CameraSettingActivity implements CameraMa
         }
         mPendingIntent = PendingIntent.getActivity(this, 0, new Intent(this, getClass()).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP), PendingIntent.FLAG_MUTABLE);
 
-        if(sweetAlertDialog != null) {
+        if (sweetAlertDialog != null) {
             sweetAlertDialog.dismiss();
         }
 
-       runOnUiThread(new Runnable() {
+
+//        TextToSpeechUtil.say(getApplicationContext(), "Welcome to Time Register");
+        runOnUiThread(new Runnable() {
             @Override
             public void run() {
-                sweetAlertDialog = new SweetAlertDialog(TimeEntryRegister.this, SweetAlertDialog.PROGRESS_TYPE).setTitleText("Loading");
+                sweetAlertDialog = new SweetAlertDialog(TimeEntryRegister.this, SweetAlertDialog.PROGRESS_TYPE).setTitleText("Loading Scanner");
                 sweetAlertDialog.show();
             }
         });
-//        TextToSpeechUtil.say(getApplicationContext(), "Welcome to Time Register");
 
-        new Handler(Looper.getMainLooper()).postDelayed(new Runnable() {
-            @Override
-            public void run() {
-                sweetAlertDialog.dismiss();
-            }
-        }, 3000);
+//        new Handler(Looper.getMainLooper()).postDelayed(new Runnable() {
+//            @Override
+//            public void run() {
+//                sweetAlertDialog.dismiss();
+//            }
+//        }, 3000);
 
         new Handler(Looper.getMainLooper()).postDelayed(new Runnable() {
             @Override
@@ -979,7 +1017,7 @@ public class TimeEntryRegister extends CameraSettingActivity implements CameraMa
     @Override
     protected void onStop() {
         super.onStop();
-        if(!isLockScreen) {
+        if (!isLockScreen) {
             if (fingerSDK != null) {
                 fingerSDK.release();
             }
@@ -990,7 +1028,7 @@ public class TimeEntryRegister extends CameraSettingActivity implements CameraMa
     public void onPause() {
         super.onPause();
         Log.d("ScanFace", "onPause: " + isLockScreen);
-        if(!isLockScreen) {
+        if (!isLockScreen) {
             if (fingerSDK != null) {
                 fingerSDK.release();
                 Log.d("TimeEntryRegister", "2: Finger SDK released");
@@ -1039,6 +1077,9 @@ public class TimeEntryRegister extends CameraSettingActivity implements CameraMa
     private void handleAnnouncements(User user) {
         AnnouncementRepository repository = new AnnouncementRepository(TimeEntryRegister.this);
         AnnouncementModel[] announcements = repository.getAnnouncements(Long.parseLong(user.getUserId()));
+
+        sharedPreferences = getSharedPreferences(Configuration.PREFS_NAME, Context.MODE_PRIVATE);
+        isTimeRegisterOn = sharedPreferences.getBoolean(Configuration.KEY_TIME_REGISTER, false);
 
         if (!isTimeRegisterOn) {
             adjustGreeting(user);
@@ -1100,7 +1141,7 @@ public class TimeEntryRegister extends CameraSettingActivity implements CameraMa
             public void capture(int i, byte[] bytes, Bitmap bitmap, byte[] temp) {
                 Log.d("TimeEntryRegister", "capture here: " + i + allowCapture);
 
-                if(i == FingerSDK.RESULT_OK){
+                if (i == FingerSDK.RESULT_OK) {
                     turnScreenOn();
                 }
 
@@ -1120,7 +1161,7 @@ public class TimeEntryRegister extends CameraSettingActivity implements CameraMa
                         for (Fingerprint fingerprint : fingerprints) {
 
                             byte[] storedFingerprint = Base64.decode(fingerprint.getKey(), Base64.DEFAULT);
-                            int score = fingerSDK.compareTemplateBytes(FingerSDK.TEMPLEATES.valueOf("ISO_19794_2_2011"), tempString.getBytes(StandardCharsets.ISO_8859_1),storedFingerprint);
+                            int score = fingerSDK.compareTemplateBytes(FingerSDK.TEMPLEATES.valueOf("ISO_19794_2_2011"), tempString.getBytes(StandardCharsets.ISO_8859_1), storedFingerprint);
                             Log.d("TimeEntryRegister", "Score: " + score);
                             if (score > fingerprintScoreThreshold) {
                                 allowCapture = false;
@@ -1212,6 +1253,9 @@ public class TimeEntryRegister extends CameraSettingActivity implements CameraMa
 
     private void showClockLayout(User user) {
         handleAnnouncements(user);
+
+        getTrackerSwitches();
+
         clockLayout.setVisibility(View.VISIBLE);
         scanLayout.setVisibility(View.GONE);
     }
@@ -1235,7 +1279,7 @@ public class TimeEntryRegister extends CameraSettingActivity implements CameraMa
     protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
 
-        Log.d("Scanface","New Intent");
+        Log.d("Scanface", "New Intent");
         turnScreenOn();
 
         if (sweetAlertDialog != null) {
@@ -1412,7 +1456,7 @@ public class TimeEntryRegister extends CameraSettingActivity implements CameraMa
                         @Override
                         public void run() {
 
-                            if(sweetAlertDialog != null){
+                            if (sweetAlertDialog != null) {
                                 sweetAlertDialog.dismiss();
                             }
 
@@ -1429,6 +1473,9 @@ public class TimeEntryRegister extends CameraSettingActivity implements CameraMa
                         @Override
                         public void run() {
                             sweetAlertDialog.dismiss();
+
+                            sharedPreferences = getSharedPreferences(Configuration.PREFS_NAME, Context.MODE_PRIVATE);
+                            isTimeRegisterOn = sharedPreferences.getBoolean(Configuration.KEY_TIME_REGISTER, false);
 
                             if (isTimeRegisterOn) {
                                 TextToSpeechUtil.say(getApplicationContext(), "Welcome " + user.getDisplayName());
@@ -1623,8 +1670,10 @@ public class TimeEntryRegister extends CameraSettingActivity implements CameraMa
                 if ((detectionResult == null || detectionResult.faceList.length == 0) && (System.currentTimeMillis() - lastFeedTimeSaver) > getScreenTimeOut()) {
                     PowerManager powerManager = (PowerManager) getSystemService(Context.POWER_SERVICE);
                     lastFeedTimeSaver = System.currentTimeMillis();
+                    Log.d("ScanFace", "Log 111111111");
+
                     if (powerManager != null && powerManager.isInteractive() && clockLayout.getVisibility() == View.GONE && !hasPreview) {
-                        Log.d("ScanFace", "no face found, turn off screen + " );
+                        Log.d("ScanFace", "no face found, turn off screen + ");
                         lockScreen();
                     }
                 }
@@ -1686,7 +1735,9 @@ public class TimeEntryRegister extends CameraSettingActivity implements CameraMa
                                             @Override
                                             public void run() {
                                                 faceView.setFaceRectError();
-                                                if(detectStranger.equals("on")) {
+                                                detectStranger = getStrangerDetection();
+
+                                                if (detectStranger.equals("on")) {
                                                     TextToSpeechUtil.say(getApplicationContext(), getString(R.string.stranger));
                                                 }
                                             }
@@ -1701,7 +1752,8 @@ public class TimeEntryRegister extends CameraSettingActivity implements CameraMa
                                     @Override
                                     public void run() {
                                         faceView.setFaceRectError();
-                                        if(detectStranger.equals("on")) {
+                                        detectStranger = getStrangerDetection();
+                                        if (detectStranger.equals("on")) {
                                             TextToSpeechUtil.say(getApplicationContext(), getString(R.string.stranger));
                                         }
                                     }

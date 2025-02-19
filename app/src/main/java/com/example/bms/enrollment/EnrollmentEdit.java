@@ -214,7 +214,7 @@ public class EnrollmentEdit extends AppCompatActivity {
         binding = ActivityEnrollmentEditBinding.inflate(getLayoutInflater());
         setContentView(binding.getRoot());
 
-        Objects.requireNonNull(getWindow().getInsetsController()).hide(WindowInsetsCompat.Type.systemBars());
+//        Objects.requireNonNull(getWindow().getInsetsController()).hide(WindowInsetsCompat.Type.systemBars());
 
         dbHelper = new DatabaseHelper(this);
 
@@ -408,11 +408,11 @@ public class EnrollmentEdit extends AppCompatActivity {
                 return;
             }
 
-            if (address2.isEmpty()) {
-                Toast.makeText(this, "Please enter your address line 2", Toast.LENGTH_SHORT).show();
-                address2Input.requestFocus();
-                return;
-            }
+//            if (address2.isEmpty()) {
+//                Toast.makeText(this, "Please enter your address line 2", Toast.LENGTH_SHORT).show();
+//                address2Input.requestFocus();
+//                return;
+//            }
 
             if (barangay.isEmpty()) {
                 Toast.makeText(this, "Please enter your barangay", Toast.LENGTH_SHORT).show();
@@ -509,6 +509,9 @@ public class EnrollmentEdit extends AppCompatActivity {
             new Handler(Looper.getMainLooper()).postDelayed(new Runnable() {
                 @Override
                 public void run() {
+                    if(sweetAlertDialog != null){
+                        sweetAlertDialog.dismiss();
+                    }
                     sweetAlertDialog =  new SweetAlertDialog(EnrollmentEdit.this, SweetAlertDialog.PROGRESS_TYPE);
                     sweetAlertDialog.setTitleText("Saving Enrollment");
                     sweetAlertDialog.show();
@@ -544,9 +547,11 @@ public class EnrollmentEdit extends AppCompatActivity {
                 long biometric_id = biometricRepository.insertBiometric(null, user_id, "fingerprint");
                 FingerprintRepository fingerprintRepository = new FingerprintRepository(this);
                 List<Fingerprint> fingerprints = fingerprintRepository.getFingerprintsByBiometricId(biometric_id);
+//                fingerprintRepository.updateNewFingerprints(biometric_id);
 
                 for (int i = 0; i < fingerDataMap.size(); i++) {
                     String key = fingerDataMap.get(i);
+
                     if (fingerprints.size() > i) {
                         fingerprintRepository.updateFingerprint(fingerprints.get(i).getId(), biometric_id, key);
                     } else {

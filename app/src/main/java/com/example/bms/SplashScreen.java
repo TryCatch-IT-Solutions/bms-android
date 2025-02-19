@@ -77,6 +77,8 @@ public class SplashScreen extends AppCompatActivity {
             return;
         }
 
+        Log.d("SplashScreen", "onCreate: Data-" + (getToken() instanceof String));
+
         SharedPreferences configShared = getSharedPreferences(Configuration.PREFS_NAME, Context.MODE_PRIVATE);
         boolean isRegistered = configShared.getBoolean("isRegistered", false);
         if(!isRegistered){
@@ -114,23 +116,23 @@ public class SplashScreen extends AppCompatActivity {
     }
 
 
-
     private void initMain(){
         new Handler(Looper.getMainLooper()).postDelayed(new Runnable() {
             @Override
             public void run() {
 
+                Log.d("SplashScreen", "run: SavedGroupId-" + savedGroupId + " ModelGroupId-" + modelGroupId);
                 if (savedGroupId.equals("0")) {
                     startActivity(new Intent(SplashScreen.this, GroupActivity.class));
                     finish();
-                }else if(modelGroupId != -1 && modelGroupId != Long.parseLong(savedGroupId)){
+                }else if(modelGroupId == -1){
                     startActivity(new Intent(SplashScreen.this, GroupActivity.class));
                     finish();
                 }else{
 //                    startActivity(new Intent(SplashScreen.this, TimeEntryRegister.class));
                     startActivity(new Intent(SplashScreen.this, MainActivity.class));
 //                    startActivity(new Intent(SplashScreen.this, EndpointRegistration.class));
-//                    finish();
+                    finish();
                 }
             }
         }, 1000);

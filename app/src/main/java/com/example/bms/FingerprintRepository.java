@@ -23,6 +23,14 @@ public class FingerprintRepository {
         dbHelper.updateFingerprint(id, biometricId, key);
     }
 
+    public void updateNewFingerprints(long biometricId) {
+        SQLiteDatabase db = dbHelper.getWritableDatabase();
+        ContentValues values = new ContentValues();
+        values.put(DatabaseHelper.COLUMN_BIOMETRIC_ID, biometricId);
+        db.update(DatabaseHelper.TABLE_FINGERPRINTS, values, DatabaseHelper.COLUMN_BIOMETRIC_ID + " = ?", new String[]{String.valueOf(-1)});
+        db.close();
+    }
+
     public void insertFingerprint(long biometricId, String key) {
         SQLiteDatabase db = dbHelper.getWritableDatabase();
         ContentValues values = new ContentValues();
@@ -32,7 +40,7 @@ public class FingerprintRepository {
         values.put(DatabaseHelper.COLUMN_UPDATED_AT, dbHelper.getCurrentDateTime());
 
         db.insert(DatabaseHelper.TABLE_FINGERPRINTS, null, values);
-        db.close();
+//        db.close();
     }
 
     public void insertOrUpdateFingerprint(long biometricId, String key) {

@@ -17,6 +17,7 @@ import androidx.activity.EdgeToEdge;
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.appcompat.widget.Toolbar;
 import androidx.core.graphics.Insets;
 import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
@@ -129,7 +130,7 @@ public class FaceScanner extends AppCompatActivity {
                                             public void run() {
                                                 new SweetAlertDialog(FaceScanner.this, SweetAlertDialog.ERROR_TYPE)
                                                         .setTitleText("Error")
-                                                        .setContentText("face chek failed")
+                                                        .setContentText("face check failed")
                                                         .show();
                                             }
                                         });
@@ -167,6 +168,15 @@ public class FaceScanner extends AppCompatActivity {
             Insets systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars());
             v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom);
             return insets;
+        });
+
+        Toolbar toolbarHead = findViewById(R.id.toolbar_header);
+        toolbarHead.setNavigationOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                startActivity(new Intent(FaceScanner.this, MainActivity.class));
+                finish();
+            }
         });
 
         findViewById(R.id.reset_button_1).setOnClickListener(new View.OnClickListener() {

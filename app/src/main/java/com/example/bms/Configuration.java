@@ -19,6 +19,7 @@ import android.text.TextWatcher;
 import android.util.Base64;
 import android.util.Log;
 import android.view.View;
+import android.widget.LinearLayout;
 import android.widget.Toast;
 
 import androidx.activity.OnBackPressedCallback;
@@ -26,11 +27,14 @@ import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.Toolbar;
 
+import com.example.bms.data.model.User;
 import com.example.bms.databinding.ActivityConfigurationBinding;
 import com.google.android.material.button.MaterialButton;
 import com.google.android.material.switchmaterial.SwitchMaterial;
 import com.google.android.material.textfield.TextInputEditText;
 
+import org.json.JSONArray;
+import org.json.JSONException;
 import org.json.JSONObject;
 
 import java.io.BufferedReader;
@@ -40,11 +44,13 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.text.SimpleDateFormat;
+import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 import java.util.Locale;
@@ -70,6 +76,7 @@ public class Configuration extends AppCompatActivity {
     private static final int REQUEST_CODE_PRIMARY_LOGO = 1;
     private static final int REQUEST_CODE_SECONDARY_LOGO = 2;
 
+    private DatabaseHelper dbHelper;
 
 
     private String getAccess() {
@@ -112,7 +119,6 @@ public class Configuration extends AppCompatActivity {
 
     @SuppressLint("Range")
     private void exportUsersToCSV() {
-        DatabaseHelper dbHelper = new DatabaseHelper(this);
         SQLiteDatabase db = dbHelper.getReadableDatabase();
 
         String role = getRole(); // Assume this method retrieves the current user's role
@@ -142,7 +148,7 @@ public class Configuration extends AppCompatActivity {
 
         // Get current date and time
         String currentDateTime = new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(new Date());
-        File file = new File(exportDir, "users_" + currentDateTime + ".csv");
+        File file = new File(exportDir, "employees_" + currentDateTime + ".csv");
 
         try {
             file.createNewFile();
@@ -194,7 +200,6 @@ public class Configuration extends AppCompatActivity {
 
     @SuppressLint("Range")
     private void exportTimeEntriesToCSV() {
-        DatabaseHelper dbHelper = new DatabaseHelper(this);
         SQLiteDatabase db = dbHelper.getReadableDatabase();
 
         String groupId = getGroupId(this); // Assume this method retrieves the current user's group ID
@@ -310,7 +315,7 @@ public class Configuration extends AppCompatActivity {
         App.BASE_URL = apiEndpoint;
     }
 
-    private String getSerial(){
+    private String getSerial() {
         String serialNo;
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             try {
@@ -387,10 +392,11 @@ public class Configuration extends AppCompatActivity {
         overtimeInSwitch.setChecked(false);
         overtimeOutSwitch.setChecked(false);
 
-        syncOnDatabase();
     }
 
     private void syncOnDatabase() {
+
+        Log.d("Configuration", "Syncing on database");
 
         String serialNo;
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -439,7 +445,6 @@ public class Configuration extends AppCompatActivity {
         overtimeInSwitch.setEnabled(true);
         overtimeOutSwitch.setEnabled(true);
 
-        syncOnDatabase();
     }
 
     private void selectImage(int requestCode) {
@@ -447,7 +452,7 @@ public class Configuration extends AppCompatActivity {
         startActivityForResult(intent, requestCode);
     }
 
-    private void initSettings(){
+    private void initSettings() {
         SharedPreferences sharedPreferences = getSharedPreferences("device_settings", Context.MODE_PRIVATE);
         String fingerprintScoreThreshold = sharedPreferences.getString("FINGERPRINT_SCORE_THRESHOLD", "50");
         String snapshotRetention = sharedPreferences.getString("SNAPSHOT_RETENTION", "30");
@@ -478,10 +483,12 @@ public class Configuration extends AppCompatActivity {
 
         inputDeviceSyncInterval.addTextChangedListener(new TextWatcher() {
             @Override
-            public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
+            public void beforeTextChanged(CharSequence s, int start, int count, int after) {
+            }
 
             @Override
-            public void onTextChanged(CharSequence s, int start, int before, int count) {}
+            public void onTextChanged(CharSequence s, int start, int before, int count) {
+            }
 
             @Override
             public void afterTextChanged(Editable s) {
@@ -494,10 +501,12 @@ public class Configuration extends AppCompatActivity {
 
         inputScreenTimeout.addTextChangedListener(new TextWatcher() {
             @Override
-            public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
+            public void beforeTextChanged(CharSequence s, int start, int count, int after) {
+            }
 
             @Override
-            public void onTextChanged(CharSequence s, int start, int before, int count) {}
+            public void onTextChanged(CharSequence s, int start, int before, int count) {
+            }
 
             @Override
             public void afterTextChanged(Editable s) {
@@ -510,10 +519,12 @@ public class Configuration extends AppCompatActivity {
 
         inputSnapshotRetention.addTextChangedListener(new TextWatcher() {
             @Override
-            public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
+            public void beforeTextChanged(CharSequence s, int start, int count, int after) {
+            }
 
             @Override
-            public void onTextChanged(CharSequence s, int start, int before, int count) {}
+            public void onTextChanged(CharSequence s, int start, int before, int count) {
+            }
 
             @Override
             public void afterTextChanged(Editable s) {
@@ -526,10 +537,12 @@ public class Configuration extends AppCompatActivity {
 
         inputFingerprintScoreThreshold.addTextChangedListener(new TextWatcher() {
             @Override
-            public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
+            public void beforeTextChanged(CharSequence s, int start, int count, int after) {
+            }
 
             @Override
-            public void onTextChanged(CharSequence s, int start, int before, int count) {}
+            public void onTextChanged(CharSequence s, int start, int before, int count) {
+            }
 
             @Override
             public void afterTextChanged(Editable s) {
@@ -545,7 +558,7 @@ public class Configuration extends AppCompatActivity {
         ExecutorService executor = Executors.newSingleThreadExecutor();
         Handler handler = new Handler(Looper.getMainLooper());
 
-        if(getAccess().equals("offline")) {
+        if (getAccess().equals("offline")) {
             return;
         }
 
@@ -626,9 +639,27 @@ public class Configuration extends AppCompatActivity {
         });
     }
 
+
+    private void importUsers() {
+        Intent intent = new Intent(Intent.ACTION_GET_CONTENT);
+        intent.setType("application/json");
+        intent.addCategory(Intent.CATEGORY_OPENABLE);
+        startActivityForResult(Intent.createChooser(intent, "Choose JSON"), IMPORT_REQUEST_CODE);
+    }
+
+    private static final int IMPORT_REQUEST_CODE = 101;
+
     @Override
     protected void onActivityResult(int requestCode, int resultCode, @Nullable Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
+
+        if (requestCode == IMPORT_REQUEST_CODE && resultCode == RESULT_OK) {
+            if (data != null) {
+                Uri uri = data.getData();
+                importUsersFromFile(uri);
+            }
+        }
+
         if (resultCode == RESULT_OK && data != null) {
             Uri selectedImage = data.getData();
             if (selectedImage != null) {
@@ -665,6 +696,209 @@ public class Configuration extends AppCompatActivity {
         editor.apply();
     }
 
+    private void exportUsersDb() {
+        List<User> users = dbHelper.getAllUsers();
+        List<Biometric> biometrics = dbHelper.getAllBiometrics();
+        List<Fingerprint> fingerprints = dbHelper.getAllFingerprints();
+
+        File exportDir = new File(Environment.getExternalStorageDirectory(), "BMSExports");
+        if (!exportDir.exists()) {
+            exportDir.mkdirs();
+        }
+
+        File file = new File(exportDir, "users_export.json");
+        try (FileWriter writer = new FileWriter(file)) {
+            JSONObject exportData = new JSONObject();
+            JSONArray usersArray = new JSONArray();
+            JSONArray biometricsArray = new JSONArray();
+            JSONArray fingerprintsArray = new JSONArray();
+
+            for (User user : users) {
+                JSONObject userJson = new JSONObject();
+                userJson.put("id", user.getUserId());
+                userJson.put("firstName", user.getFirstName());
+                userJson.put("middleName", user.getMiddleName());
+                userJson.put("lastName", user.getLastName());
+                userJson.put("email", user.getEmail());
+                userJson.put("phone", user.getPhone());
+                userJson.put("password", user.getPassword());
+                userJson.put("role", user.getRole());
+                userJson.put("groupId", user.getGroupId());
+                userJson.put("address1", user.getAddress1());
+                userJson.put("address2", user.getAddress2());
+                userJson.put("barangay", user.getBarangay());
+                userJson.put("municipality", user.getMunicipality());
+                userJson.put("province", user.getProvince());
+                userJson.put("birthDate", user.getBirthDate());
+                userJson.put("gender", user.getGender());
+                userJson.put("zipCode", user.getZipCode());
+                userJson.put("emergencyContactName", user.getEmergencyContactName());
+                userJson.put("emergencyContactNo", user.getEmergencyContactNo());
+                userJson.put("status", user.getStatus());
+                userJson.put("isSynced", user.getIsSynced());
+                usersArray.put(userJson);
+            }
+
+            for (Biometric biometric : biometrics) {
+                JSONObject biometricJson = new JSONObject();
+                biometricJson.put("id", biometric.getId());
+                biometricJson.put("userId", biometric.getUserId());
+                biometricJson.put("key", biometric.getKey());
+                biometricJson.put("type", biometric.getType());
+                biometricJson.put("isSynced", biometric.getIsSynced());
+                biometricsArray.put(biometricJson);
+            }
+
+            for (Fingerprint fingerprint : fingerprints) {
+                JSONObject fingerprintJson = new JSONObject();
+                fingerprintJson.put("id", fingerprint.getId());
+                fingerprintJson.put("biometricId", fingerprint.getBiometricId());
+                fingerprintJson.put("key", fingerprint.getKey());
+                fingerprintJson.put("createdAt", fingerprint.getCreatedAt());
+                fingerprintJson.put("updatedAt", fingerprint.getUpdatedAt());
+                fingerprintJson.put("deletedAt", fingerprint.getDeletedAt());
+                fingerprintJson.put("deletedBy", fingerprint.getDeletedBy());
+                fingerprintsArray.put(fingerprintJson);
+            }
+
+            exportData.put("users", usersArray);
+            exportData.put("biometrics", biometricsArray);
+            exportData.put("fingerprints", fingerprintsArray);
+
+            writer.write(exportData.toString(4)); // Pretty print with an indent of 4 spaces
+            writer.flush();
+
+            new SweetAlertDialog(this, SweetAlertDialog.SUCCESS_TYPE)
+                    .setTitleText("Users exported successfully")
+                    .show();
+        } catch (IOException | JSONException e) {
+            e.printStackTrace();
+            new SweetAlertDialog(this, SweetAlertDialog.ERROR_TYPE)
+                    .setTitleText("Failed to export users")
+                    .show();
+        }
+    }
+
+    private void importUsersFromFile(Uri uri) {
+        try (InputStream inputStream = getContentResolver().openInputStream(uri);
+             BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream))) {
+
+            StringBuilder jsonBuilder = new StringBuilder();
+            String line;
+            while ((line = reader.readLine()) != null) {
+                jsonBuilder.append(line);
+            }
+
+            String jsonString = jsonBuilder.toString();
+            JSONObject jsonObject = new JSONObject(jsonString);
+
+            UserRepository userRepository = new UserRepository(this);
+            BiometricRepository biometricRepository = new BiometricRepository(this);
+            FingerprintRepository fingerprintRepository = new FingerprintRepository(this);
+
+            JSONArray usersArray = jsonObject.getJSONArray("users");
+
+            List<Long> existingUserIds = new ArrayList<Long>();
+            List<Long> existingBiometricIds = new ArrayList<Long>();
+
+            for (int i = 0; i < usersArray.length(); i++) {
+
+
+                JSONObject userJson = usersArray.getJSONObject(i);
+
+                if (userRepository.findUserIdByEmail(userJson.getString("email")) != -1) {
+                    existingUserIds.add(Long.parseLong(userJson.getString("id")));
+                    continue;
+                }
+
+                User user = new User(
+                        userJson.getString("id"),
+                        userJson.getString("firstName").concat(userJson.getString("lastName")),
+                        userJson.getString("firstName"),
+                        userJson.getString("middleName"),
+                        userJson.getString("lastName"),
+                        userJson.getString("email"),
+                        userJson.getString("phone"),
+                        userJson.optString("password", null),
+                        1,
+                        userJson.getString("role"),
+                        userJson.getString("address1"),
+                        userJson.getString("address2"),
+                        userJson.getString("barangay"),
+                        userJson.getString("municipality"),
+                        userJson.getString("province"),
+                        userJson.getString("birthDate"),
+                        userJson.getString("gender"),
+                        userJson.getString("zipCode"),
+                        userJson.getString("emergencyContactName"),
+                        userJson.getString("emergencyContactNo"),
+                        userJson.getString("status"),
+                        userJson.getInt("isSynced")
+                );
+                userRepository.insertUser(
+                        user.getGroupId(), user.getFirstName(), user.getMiddleName(), user.getLastName(), user.getAddress1(), user.getAddress2(),
+                        user.getBarangay(), user.getMunicipality(), user.getProvince(), user.getBirthDate(), user.getGender(), Integer.parseInt(user.getZipCode()),
+                        0, 0, user.getEmail(), user.getPhone(), user.getEmergencyContactNo(), user.getEmergencyContactName(),
+                        user.getRole(), user.getPassword()
+                );
+            }
+
+            JSONArray biometricsArray = jsonObject.getJSONArray("biometrics");
+            for (int i = 0; i < biometricsArray.length(); i++) {
+                JSONObject biometricJson = biometricsArray.getJSONObject(i);
+
+                if (existingUserIds.contains(biometricJson.getLong("userId"))) {
+                    existingBiometricIds.add(biometricJson.getLong("id"));
+                    continue;
+                }
+
+                Biometric biometric = new Biometric(
+                        biometricJson.getLong("id"),
+                        biometricJson.getLong("userId"),
+                        biometricJson.optString("key", JSONObject.NULL.toString()),
+                        biometricJson.getString("type"),
+                        dbHelper.getCurrentDateTime(),
+                        dbHelper.getCurrentDateTime(),
+                        biometricJson.getInt("isSynced")
+                );
+                biometricRepository.insertBiometric(
+                        biometric.getKey(), biometric.getUserId(), biometric.getType()
+                );
+            }
+
+            JSONArray fingerprintsArray = jsonObject.getJSONArray("fingerprints");
+            for (int i = 0; i < fingerprintsArray.length(); i++) {
+                JSONObject fingerprintJson = fingerprintsArray.getJSONObject(i);
+
+                if (existingBiometricIds.contains(fingerprintJson.getLong("biometricId"))) {
+                    continue;
+                }
+
+                Fingerprint fingerprint = new Fingerprint(
+                        fingerprintJson.getLong("id"),
+                        fingerprintJson.getLong("biometricId"),
+                        fingerprintJson.getString("key"),
+                        dbHelper.getCurrentDateTime(),
+                        dbHelper.getCurrentDateTime(),
+                        fingerprintJson.optString("deletedAt", null),
+                        fingerprintJson.getLong("deletedBy")
+                );
+                fingerprintRepository.insertFingerprint(
+                        fingerprint.getBiometricId(), fingerprint.getKey()
+                );
+            }
+
+            new SweetAlertDialog(this, SweetAlertDialog.SUCCESS_TYPE)
+                    .setTitleText("Users imported successfully")
+                    .show();
+        } catch (Exception e) {
+            e.printStackTrace();
+            new SweetAlertDialog(this, SweetAlertDialog.ERROR_TYPE)
+                    .setTitleText("Failed to import users. File may be corrupted/changed.")
+                    .show();
+        }
+    }
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -675,22 +909,62 @@ public class Configuration extends AppCompatActivity {
         deviceRepository = new DeviceRepository(this);
 
         initSettings();
+        dbHelper = new DatabaseHelper(this);
 
 //        Objects.requireNonNull(getWindow().getInsetsController()).hide(WindowInsetsCompat.Type.systemBars());
+
+
+        MaterialButton buttonResetPassword = findViewById(R.id.button_reset_password);
+        LinearLayout reset_password_layout = findViewById(R.id.reset_password_layout);
+
+        LinearLayout export_users_db_layout = findViewById(R.id.export_users_db);
+        MaterialButton buttonExportUsers = findViewById(R.id.export_users_db_btn);
+
+        LinearLayout import_users_db_layout = findViewById(R.id.import_users_db);
+        MaterialButton buttonImportUsers = findViewById(R.id.import_users_db_btn);
+
+
+        buttonImportUsers.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                importUsers();
+            }
+        });
+
+        buttonExportUsers.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                exportUsersDb();
+            }
+        });
+
+        buttonResetPassword.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                startActivity(new Intent(Configuration.this, ResetPasswordActivity.class));
+            }
+        });
 
         // Override the back button press
         getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
             @Override
             public void handleOnBackPressed() {
+                syncOnDatabase();
 
                 startActivity(new Intent(Configuration.this, MainActivity.class));
                 finish();
             }
         });
 
-        if(Objects.equals(getRole(), "groupadmin")){
+        if (Objects.equals(getRole(), "groupadmin")) {
             findViewById(R.id.secondary_logo_layout).setVisibility(View.GONE);
             findViewById(R.id.button_upload_secondary_logo).setVisibility(View.GONE);
+            findViewById(R.id.device_interval_layout).setVisibility(View.GONE);
+            findViewById(R.id.screen_timeout_layout).setVisibility(View.GONE);
+            findViewById(R.id.snapshot_retention_layout).setVisibility(View.GONE);
+            findViewById(R.id.fingerprint_score_layout).setVisibility(View.GONE);
+            findViewById(R.id.device_interval_layout).setVisibility(View.GONE);
+
         }
 
         MaterialButton buttonUploadPrimaryLogo = findViewById(R.id.button_upload_primary_logo);
@@ -710,18 +984,23 @@ public class Configuration extends AppCompatActivity {
             }
         });
 
-
         if (getAccess().equals("offline")) {
             findViewById(R.id.sync_time_layout).setVisibility(View.GONE);
             findViewById(R.id.sync_users_layout).setVisibility(View.GONE);
-//            findViewById(R.id.api_endpoint_layout).setVisibility(View.GONE);
+            reset_password_layout.setVisibility(View.VISIBLE);
+            export_users_db_layout.setVisibility(View.VISIBLE);
+            import_users_db_layout.setVisibility(View.VISIBLE);
+            findViewById(R.id.stranger_detection_layout).setVisibility(View.VISIBLE);
+            findViewById(R.id.primary_logo_layout).setVisibility(View.VISIBLE);
+            findViewById(R.id.secondary_logo_layout).setVisibility(View.VISIBLE);
         }
-
 
         Toolbar toolbarHead = findViewById(R.id.toolbar_header);
         toolbarHead.setNavigationOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
+                syncOnDatabase();
+
                 startActivity(new Intent(Configuration.this, MainActivity.class));
                 finish();
             }
@@ -840,7 +1119,6 @@ public class Configuration extends AppCompatActivity {
             editor.putBoolean(KEY_TIME_REGISTER + "_check_in", isChecked);
             editor.apply();
 
-            syncOnDatabase();
         });
 
 // Check Out Switch
@@ -850,7 +1128,6 @@ public class Configuration extends AppCompatActivity {
             SharedPreferences.Editor editor = sharedPreferences.edit();
             editor.putBoolean(KEY_TIME_REGISTER + "_check_out", isChecked);
             editor.apply();
-            syncOnDatabase();
         });
 
 // Break In Switch
@@ -860,7 +1137,6 @@ public class Configuration extends AppCompatActivity {
             SharedPreferences.Editor editor = sharedPreferences.edit();
             editor.putBoolean(KEY_TIME_REGISTER + "_break_in", isChecked);
             editor.apply();
-            syncOnDatabase();
         });
 
 // Break Out Switch
@@ -870,7 +1146,6 @@ public class Configuration extends AppCompatActivity {
             SharedPreferences.Editor editor = sharedPreferences.edit();
             editor.putBoolean(KEY_TIME_REGISTER + "_break_out", isChecked);
             editor.apply();
-            syncOnDatabase();
         });
 
 // Overtime In Switch
@@ -880,7 +1155,6 @@ public class Configuration extends AppCompatActivity {
             SharedPreferences.Editor editor = sharedPreferences.edit();
             editor.putBoolean(KEY_TIME_REGISTER + "_overtime_in", isChecked);
             editor.apply();
-            syncOnDatabase();
         });
 
 // Overtime Out Switch
@@ -890,7 +1164,6 @@ public class Configuration extends AppCompatActivity {
             SharedPreferences.Editor editor = sharedPreferences.edit();
             editor.putBoolean(KEY_TIME_REGISTER + "_overtime_out", isChecked);
             editor.apply();
-            syncOnDatabase();
         });
 
         getTrackerSwitches();

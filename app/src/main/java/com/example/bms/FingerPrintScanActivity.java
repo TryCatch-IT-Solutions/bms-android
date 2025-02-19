@@ -57,6 +57,8 @@ public class FingerPrintScanActivity extends AppCompatActivity {
     private List<Fingerprint> fingerprints;
 
 
+    private SweetAlertDialog sweetAlertDialog;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -107,9 +109,15 @@ public class FingerPrintScanActivity extends AppCompatActivity {
             fingerImageView.setImageDrawable(null);
         }
 
+        sweetAlertDialog = new SweetAlertDialog(this, SweetAlertDialog.PROGRESS_TYPE);
+        sweetAlertDialog.setTitleText("Loading Scanner");
+//        sweetAlertDialog.setCancelable(false);
+        sweetAlertDialog.show();
+
         fingerSDK = new FingerSDK(FingerPrintScanActivity.this, new OnSdkInitListener() {
             @Override
             public void initResult(int i, String s) {
+
                 runOnUiThread(new Runnable() {
                     @Override
                     public void run() {
@@ -118,11 +126,13 @@ public class FingerPrintScanActivity extends AppCompatActivity {
                             Log.d("FingerPrintScanActivity", "run: fingerSDK is null");
                             return;
                         }
-                        if (i != 1) {
+
+                        if (i != 1 && i != 0) {
                             Log.d("FingerPrintScanActivity", "run: fingerSDK is null");
                             fingerSDK.launch();
                         }else{
                             Log.d("FingerPrintScanActivity", "run: fingerSDK is not null");
+                            sweetAlertDialog.dismiss();
                         }
                     }
                 });
@@ -144,6 +154,7 @@ public class FingerPrintScanActivity extends AppCompatActivity {
             public void onClick(View v) {
                 if (areAllFingersScanned()) {
                     Intent intent = new Intent();
+                    Log.d("FingerPrintScanActivity", "fingerDataMap: " + fingerDataMap);
                     intent.putExtra("fingerDataMap", fingerDataMap);
                     setResult(RESULT_OK, intent);
                     finish();

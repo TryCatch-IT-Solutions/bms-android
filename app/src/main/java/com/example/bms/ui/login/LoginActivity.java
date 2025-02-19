@@ -12,6 +12,8 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
@@ -32,6 +34,7 @@ import android.view.KeyEvent;
 import android.view.View;
 import android.view.inputmethod.EditorInfo;
 import android.widget.EditText;
+import android.widget.ImageView;
 import android.widget.ProgressBar;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -57,6 +60,7 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 
 import java.io.BufferedReader;
+import java.io.File;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
@@ -76,7 +80,19 @@ public class LoginActivity extends AppCompatActivity {
 
     long modelGroupId;
 
-    private void syncUsers(){
+    SweetAlertDialog sweetAlertDialog;
+
+
+    private String getSecondaryLogo() {
+        SharedPreferences sharedPreferences = getSharedPreferences("device_settings", Context.MODE_PRIVATE);
+        String secondaryLogo = sharedPreferences.getString("SECONDARY_LOGO", null);
+        if (secondaryLogo == null) {
+            return "drawable/logo"; // Return the default logo resource name
+        }
+        return secondaryLogo;
+    }
+
+    private void syncUsers() {
         try {
             URL url = new URL(App.BASE_URL + "/sync/users/login");
             HttpURLConnection conn = (HttpURLConnection) url.openConnection();
@@ -161,14 +177,14 @@ public class LoginActivity extends AppCompatActivity {
         }
     }
 
-    private String getAccess()  {
+    private String getAccess() {
         SharedPreferences sharedPreferences = getSharedPreferences(Configuration.PREFS_NAME, Context.MODE_PRIVATE);
         return sharedPreferences.getString("ACCESS", "offline");
     }
 
     private void syncGroups() {
 
-        if(getAccess().equals("offline")){
+        if (getAccess().equals("offline")) {
             return;
         }
 
@@ -180,10 +196,21 @@ public class LoginActivity extends AppCompatActivity {
             conn.setRequestProperty("Authorization", "Bearer " + App.TOKEN);
 
             if (conn.getResponseCode() != 200) {
-                new SweetAlertDialog(LoginActivity.this, SweetAlertDialog.ERROR_TYPE)
-                        .setTitleText("Failed to sync groups")
-                        .setContentText("Failed to sync groups from the server. Please close the app, and try again.")
-                        .show();
+                runOnUiThread(new Runnable() {
+                    @Override
+                    public void run() {
+
+                        if (sweetAlertDialog != null) {
+                            sweetAlertDialog.dismiss();
+                        }
+
+                        sweetAlertDialog = new SweetAlertDialog(LoginActivity.this, SweetAlertDialog.ERROR_TYPE)
+                                .setTitleText("Failed to sync groups")
+                                .setContentText("Failed to sync groups from the server. Please close the app, and try again.");
+                        sweetAlertDialog.show();
+                    }
+                });
+
                 throw new RuntimeException("Failed : HTTP error code : " + conn.getResponseCode());
             }
 
@@ -269,6 +296,7 @@ public class LoginActivity extends AppCompatActivity {
     }
 
     private static final int REQUEST_MANAGE_EXTERNAL_STORAGE = 1;
+
     private void requestManageExternalStoragePermission() {
         Intent intent = new Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION);
         intent.setData(Uri.parse("package:" + getPackageName()));
@@ -302,9 +330,24 @@ public class LoginActivity extends AppCompatActivity {
 
         Log.d("LoginActivity", App.BASE_URL);
 
-        if(getAccess().equals("online")) {
+        if (getAccess().equals("online")) {
             ExecutorService executor = Executors.newSingleThreadExecutor();
             executor.execute(this::syncGroups);
+        }
+
+        ImageView logo = findViewById(R.id.logo);
+        String secondaryLogo = getSecondaryLogo();
+        if (!secondaryLogo.equals("drawable/logo")) {
+            File imgFile = new File(secondaryLogo);
+            Log.d("SecondaryLogo", "Path: " + imgFile.getAbsolutePath() + " Exists: " + imgFile.exists());
+            if (imgFile.exists()) {
+                Bitmap myBitmap = BitmapFactory.decodeFile(imgFile.getAbsolutePath());
+                logo.setImageBitmap(myBitmap);
+            } else {
+                logo.setImageResource(R.drawable.logo);
+            }
+        } else {
+            logo.setImageResource(R.drawable.logo);
         }
 
         requestAllPermissions();
@@ -317,9 +360,9 @@ public class LoginActivity extends AppCompatActivity {
         findViewById(R.id.toggle_password_visibility).setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                if(passwordEditText.getInputType() == (EditorInfo.TYPE_TEXT_VARIATION_PASSWORD | EditorInfo.TYPE_CLASS_TEXT)){
+                if (passwordEditText.getInputType() == (EditorInfo.TYPE_TEXT_VARIATION_PASSWORD | EditorInfo.TYPE_CLASS_TEXT)) {
                     passwordEditText.setInputType(EditorInfo.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD);
-                }else{
+                } else {
                     passwordEditText.setInputType(EditorInfo.TYPE_TEXT_VARIATION_PASSWORD | EditorInfo.TYPE_CLASS_TEXT);
                 }
             }
@@ -347,6 +390,11 @@ public class LoginActivity extends AppCompatActivity {
                 if (loginResult == null) {
                     return;
                 }
+
+                if (sweetAlertDialog != null) {
+                    sweetAlertDialog.dismissWithAnimation();
+                }
+
                 loadingProgressBar.setVisibility(View.GONE);
                 if (loginResult.getError() != null) {
                     showLoginFailed(loginResult.getError());
@@ -388,7 +436,7 @@ public class LoginActivity extends AppCompatActivity {
             @Override
             public boolean onEditorAction(TextView v, int actionId, KeyEvent event) {
                 if (actionId == EditorInfo.IME_ACTION_DONE) {
-                    loginViewModel.login(LoginActivity.this,usernameEditText.getText().toString(),
+                    loginViewModel.login(LoginActivity.this, usernameEditText.getText().toString(),
                             passwordEditText.getText().toString());
                 }
                 return false;
@@ -399,21 +447,40 @@ public class LoginActivity extends AppCompatActivity {
             @Override
             public void onClick(View v) {
                 loadingProgressBar.setVisibility(View.VISIBLE);
-                loginViewModel.login(LoginActivity.this,usernameEditText.getText().toString(),
+
+                loginViewModel.login(LoginActivity.this, usernameEditText.getText().toString(),
                         passwordEditText.getText().toString());
             }
         });
     }
 
+    private String getUserGroupId() throws Exception {
+        SharedPreferences sharedPreferences = getSharedPreferences("user_prefs", Context.MODE_PRIVATE);
+        String encryptedData = sharedPreferences.getString("user_data", null);
+        if (encryptedData != null) {
+            byte[] decodedData = Base64.decode(encryptedData, Base64.DEFAULT);
+            String decryptedData = EncryptionUtil.decrypt(decodedData);
+            String[] userData = decryptedData.split(",");
+            return userData[3];
+        }
+        return null;
+    }
+
     private void updateUiWithUser(LoggedInUserView model) throws Exception {
 
-        if(getAccess().equals("offline")){
+        if (getAccess().equals("offline")) {
             EncryptionUtil.generateKey();
-            byte[] encryptedData = EncryptionUtil.encrypt(model.getDisplayName() + "," + model.getEmail() + "," + model.getPassword() + "," + "1" + "," + model.getRole()+ ","+ "no-token-offline");
+            byte[] encryptedData = EncryptionUtil.encrypt(model.getDisplayName() + "," + model.getEmail() + "," + model.getPassword() + "," + "1" + "," + model.getRole() + "," + "no-token-offline");
             SharedPreferences sharedPreferences = getSharedPreferences("user_prefs", Context.MODE_PRIVATE);
             SharedPreferences.Editor editor = sharedPreferences.edit();
             editor.putString("user_data", Base64.encodeToString(encryptedData, Base64.DEFAULT));
             editor.apply();
+
+            SharedPreferences groupPrefs = getSharedPreferences("DEVICE_GROUP", Context.MODE_PRIVATE);
+            SharedPreferences.Editor editorGroup = groupPrefs.edit();
+            editorGroup.putString(GroupActivity.KEY_SELECTED_GROUP, "1");
+            editorGroup.apply();
+
             startActivity(new Intent(LoginActivity.this, SplashScreen.class));
             return;
         }
@@ -457,43 +524,63 @@ public class LoginActivity extends AppCompatActivity {
                         String errorMessage = jsonResponse.getString("errors");
                         Log.e("LoginDataSource", "Error: " + errorMessage);
 
-                    }else{
+                    } else {
                         success = responseCode == HttpURLConnection.HTTP_OK;
                         token = jsonResponse.getString("token");
                         Log.d("LoginDataSource", "Token: " + token);
                     }
                 }
 
-                if(model.getRole().equals("groupadmin")) {
+                if (model.getRole().equals("groupadmin")) {
 
                     DeviceRepository deviceRepository = new DeviceRepository(LoginActivity.this);
                     modelGroupId = deviceRepository.getModelGroupId(Build.MODEL);
 
-                    Log.d("LognActivity", "Group ID     : " + model.getGroupId());
+                    Log.d("LognActivity", "Group ID : " + model.getGroupId() + " Model Group ID: " + modelGroupId);
 
-                    if(model.getGroupId() == 0){
+                    if (model.getGroupId() == 0) {
 
                         new Handler(Looper.getMainLooper()).postDelayed(new Runnable() {
                             @Override
                             public void run() {
-                                new SweetAlertDialog(LoginActivity.this, SweetAlertDialog.ERROR_TYPE)
-                                        .setTitleText("Error")
-                                        .setContentText("You are not assigned to any group")
-                                        .show();
+
+                                runOnUiThread(new Runnable() {
+                                    @Override
+                                    public void run() {
+
+                                        if (sweetAlertDialog != null) {
+                                            sweetAlertDialog.dismiss();
+                                        }
+
+                                        sweetAlertDialog = new SweetAlertDialog(LoginActivity.this, SweetAlertDialog.ERROR_TYPE)
+                                                .setTitleText("Error")
+                                                .setContentText("You are not assigned to any group");
+                                        sweetAlertDialog.show();
+                                    }
+                                });
+
+
                             }
                         }, 100);
                         return;
                     }
 
 
-                    if(modelGroupId != -1 && modelGroupId != model.getGroupId()){
+                    List<Long> deviceGroupIds = deviceRepository.getModelGroupIds(Build.MODEL);
+
+                    if (!deviceGroupIds.isEmpty() && !deviceGroupIds.contains(model.getGroupId())) {
                         new Handler(Looper.getMainLooper()).postDelayed(new Runnable() {
                             @Override
                             public void run() {
-                                new SweetAlertDialog(LoginActivity.this, SweetAlertDialog.ERROR_TYPE)
+
+                                if (sweetAlertDialog != null) {
+                                    sweetAlertDialog.dismiss();
+                                }
+
+                                sweetAlertDialog = new SweetAlertDialog(LoginActivity.this, SweetAlertDialog.ERROR_TYPE)
                                         .setTitleText("Device Group & Model Mismatch")
-                                        .setContentText("You are not allowed to login to this device.")
-                                        .show();
+                                        .setContentText("You are not allowed to login to this device.");
+                                sweetAlertDialog.show();
                             }
                         }, 100);
 
@@ -502,19 +589,27 @@ public class LoginActivity extends AppCompatActivity {
 
                     SharedPreferences groupPrefs = getSharedPreferences("DEVICE_GROUP", Context.MODE_PRIVATE);
                     String groupId = groupPrefs.getString(GroupActivity.KEY_SELECTED_GROUP, null);
-                    if(groupId == null){
+                    if (groupId == null) {
                         SharedPreferences.Editor editorGroup = groupPrefs.edit();
                         editorGroup.putString(GroupActivity.KEY_SELECTED_GROUP, String.valueOf(model.getGroupId()));
                         editorGroup.apply();
-                    }else{
-                        if(!groupId.equals(String.valueOf(model.getGroupId()))){
+                    } else {
+
+                        Log.d("LognActivity: ", "Group ID : " + groupId + " Model Group ID: " + model.getGroupId());
+                        if (!groupId.equals(String.valueOf(model.getGroupId()))) {
                             new Handler(Looper.getMainLooper()).postDelayed(new Runnable() {
                                 @Override
                                 public void run() {
-                                    new SweetAlertDialog(LoginActivity.this, SweetAlertDialog.ERROR_TYPE)
+
+                                    if (sweetAlertDialog != null) {
+                                        sweetAlertDialog.dismiss();
+                                    }
+
+                                    sweetAlertDialog = new SweetAlertDialog(LoginActivity.this, SweetAlertDialog.ERROR_TYPE)
                                             .setTitleText("Group Mismatch")
-                                            .setContentText("You are not allowed to login to this device.")
-                                            .show();
+                                            .setContentText("You are not allowed to login to this device.");
+                                    sweetAlertDialog.show();
+
                                 }
                             }, 100);
 
@@ -522,16 +617,16 @@ public class LoginActivity extends AppCompatActivity {
                             return;
                         }
                     }
-                }else{
+                } else {
                     SharedPreferences groupPrefs = getSharedPreferences("DEVICE_GROUP", Context.MODE_PRIVATE);
                     SharedPreferences.Editor editorGroup = groupPrefs.edit();
                     editorGroup.putString(GroupActivity.KEY_SELECTED_GROUP, String.valueOf(model.getGroupId()));
                     editorGroup.apply();
                 }
 
-                if(success) {
+                if (success) {
                     EncryptionUtil.generateKey();
-                    byte[] encryptedData = EncryptionUtil.encrypt(model.getDisplayName() + "," + model.getEmail() + "," + model.getPassword() + "," + model.getGroupId() + "," + model.getRole()+ ","+ token);
+                    byte[] encryptedData = EncryptionUtil.encrypt(model.getDisplayName() + "," + model.getEmail() + "," + model.getPassword() + "," + model.getGroupId() + "," + model.getRole() + "," + token);
                     SharedPreferences sharedPreferences = getSharedPreferences("user_prefs", Context.MODE_PRIVATE);
                     SharedPreferences.Editor editor = sharedPreferences.edit();
                     editor.putString("user_data", Base64.encodeToString(encryptedData, Base64.DEFAULT));
@@ -547,7 +642,7 @@ public class LoginActivity extends AppCompatActivity {
 
                     // Handle the result on the main thread
                     Log.d("LoginActivity", "Login successful");
-                    if(modelGroupId != -1 && modelGroupId != model.getGroupId()){
+                    if (modelGroupId != -1 && modelGroupId != model.getGroupId()) {
                         startActivity(new Intent(LoginActivity.this, GroupActivity.class));
                         finish();
                         return;
@@ -556,7 +651,16 @@ public class LoginActivity extends AppCompatActivity {
                     startActivity(new Intent(LoginActivity.this, SplashScreen.class));
                     finish();
                 } else {
-                    Toast.makeText(LoginActivity.this, "Login failed", Toast.LENGTH_SHORT).show();
+
+                    if (sweetAlertDialog != null) {
+                        sweetAlertDialog.dismiss();
+                    }
+
+                    sweetAlertDialog = new SweetAlertDialog(LoginActivity.this, SweetAlertDialog.ERROR_TYPE)
+                            .setTitleText("Login failed")
+                            .setContentText("Invalid username or password");
+                    sweetAlertDialog.show();
+
                 }
 
             });

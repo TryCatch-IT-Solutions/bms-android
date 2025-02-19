@@ -15,6 +15,7 @@ import android.os.Build;
 import android.os.Environment;
 import android.os.Handler;
 import android.os.Looper;
+import android.os.StatFs;
 import android.text.TextUtils;
 import android.util.Base64;
 import android.util.Log;
@@ -28,6 +29,7 @@ import com.example.bms.data.LoginDataSource;
 import com.example.bms.data.model.LoggedInUser;
 import com.example.bms.data.model.User;
 import com.example.bms.time_entry.TimeRepository;
+import com.example.bms.ui.login.LoginActivity;
 import com.github.yuweiguocn.library.greendao.MigrationHelper;
 import com.google.android.gms.common.ConnectionResult;
 import com.google.android.gms.common.GoogleApiAvailability;
@@ -262,6 +264,7 @@ public class App extends Application {
                     executor.execute(()-> getTimeEntries());
                     executor.execute(()-> getAnnouncements());
                     executor.execute(() -> syncMyDevice());
+                    executor.execute(() -> syncGroups());
 
                     getDeviceSettings();
 
@@ -331,7 +334,7 @@ public class App extends Application {
 
         } catch (Exception e) {
             e.printStackTrace();
-            Log.e("DeviceRegistration", "Error registering device: " + e.getMessage() + getToken(this));
+            Log.e("DeviceRegistration", "updateDeviceSyncStatus() Error registering device: " + e.getMessage() + getToken(this));
         }
     }
 
@@ -423,8 +426,6 @@ public class App extends Application {
             return null;
         }
     }
-
-
 
     private void getDeviceSettings() {
         ExecutorService executor = Executors.newSingleThreadExecutor();
@@ -539,6 +540,21 @@ public class App extends Application {
         return null;
     }
 
+    private int getDeviceStorage() {
+        File path = Environment.getDataDirectory();
+        StatFs stat = new StatFs(path.getPath());
+        long blockSize = stat.getBlockSizeLong();
+        long availableBlocks = stat.getAvailableBlocksLong();
+        return (int) (availableBlocks * blockSize / 1024 / 1024); // Return the available storage in MB
+    }
+
+    private int getDeviceTotalStorage() {
+        File path = Environment.getDataDirectory();
+        StatFs stat = new StatFs(path.getPath());
+        long blockSize = stat.getBlockSizeLong();
+        long totalBlocks = stat.getBlockCountLong();
+        return (int) (totalBlocks * blockSize / 1024 / 1024); // Return the total storage in MB
+    }
 
     private int getDeviceBattery() {
         BatteryManager batteryManager = (BatteryManager) getSystemService(Context.BATTERY_SERVICE);
@@ -668,6 +684,8 @@ public class App extends Application {
 
                 JSONObject metadata = new JSONObject();
                 metadata.put("battery", getDeviceBattery());
+                metadata.put("available_storage", getDeviceStorage());
+                metadata.put("total_storage", getDeviceTotalStorage());
                 deviceDetails.put("metadata", metadata);
 
                 Log.d("DeviceRegistration", "Lat: " + latLong[0] + ", Lon: " + latLong[1]);
@@ -686,6 +704,17 @@ public class App extends Application {
                         deviceDetails.put("overtime_in", device.isOvertimeIn());
                         deviceDetails.put("overtime_out", device.isOvertimeOut());
 
+                        SharedPreferences sharedPreferences = getSharedPreferences(Configuration.PREFS_NAME, Context.MODE_PRIVATE);
+                        SharedPreferences.Editor editor = sharedPreferences.edit();
+                        editor.putBoolean(Configuration.KEY_TIME_REGISTER, deviceDetails.getBoolean("manual_time_entry"));
+                        editor.putBoolean(Configuration.KEY_TIME_REGISTER + "_check_in", deviceDetails.getBoolean("check_in"));
+                        editor.putBoolean(Configuration.KEY_TIME_REGISTER + "_check_out", deviceDetails.getBoolean("check_out"));
+                        editor.putBoolean(Configuration.KEY_TIME_REGISTER + "_break_in", deviceDetails.getBoolean("break_in"));
+                        editor.putBoolean(Configuration.KEY_TIME_REGISTER + "_break_out", deviceDetails.getBoolean("break_out"));
+                        editor.putBoolean(Configuration.KEY_TIME_REGISTER + "_overtime_in", deviceDetails.getBoolean("overtime_in"));
+                        editor.putBoolean(Configuration.KEY_TIME_REGISTER + "_overtime_out", deviceDetails.getBoolean("overtime_out"));
+                        editor.apply();
+
                         //sync settings
                         if(getPrimaryLogo() != null) {
                             File primaryLogoFile = new File(getPrimaryLogo());
@@ -702,6 +731,8 @@ public class App extends Application {
                         }
 
                     }
+
+
                 }else{
                     deviceDetails.put("manual_time_entry", false);
                     deviceDetails.put("check_in", false);
@@ -711,6 +742,7 @@ public class App extends Application {
                     deviceDetails.put("overtime_in", false);
                     deviceDetails.put("overtime_out", false);
 
+                    Log.d("DeviceRegistration", "Device Updated: " + Long.parseLong(groupId));
                     deviceRepository.insertOrUpdateDevice(
                             Long.parseLong(groupId),
                             model,
@@ -741,7 +773,7 @@ public class App extends Application {
                 URL url = new URL(App.BASE_URL + "/sync/devices");
                 HttpURLConnection conn = (HttpURLConnection) url.openConnection();
                 conn.setRequestMethod("POST");
-                conn.setRequestProperty("Content-Type", "application/json; utf-8");
+                conn.setRequestProperty("Content-Type", "application/json");
                 conn.setRequestProperty("Accept", "application/json");
                 conn.setRequestProperty("Authorization", "Bearer " + token);
 
@@ -753,7 +785,8 @@ public class App extends Application {
                 }
 
                 int responseCode = conn.getResponseCode();
-                Log.d("DeviceRegistration", "Response Code: " + responseCode);
+                Log.d("DeviceRegistration", "Response Code 112222: " + responseCode);
+                Log.d("DeviceRegistration", "Response 133333: " + deviceDetails.toString());
 
                 try (BufferedReader br = new BufferedReader(
                         new InputStreamReader(conn.getInputStream(), "utf-8"))) {
@@ -766,13 +799,9 @@ public class App extends Application {
                     deviceRepository.updateSyncedDevice(serialNo);
                 }
 
-
-
-
-
             } catch (Exception e) {
                 e.printStackTrace();
-                Log.e("DeviceRegistration", "Error registering device: " + e.getMessage() + getToken(this));
+                Log.e("DeviceRegistration", "syncMyDevice() Error registering device: " + e.getMessage() + getToken(this));
             }
         });
 
@@ -844,9 +873,12 @@ public class App extends Application {
 
                 DeviceModel storedDevice = deviceRepository.getDevice(device.getString("serial_no"));
 
+                Log.d("DeviceRegistration", "Web Device: " + device.getString("serial_no") + " My Device: " + mySerial + "Equal: " + mySerial.equals(device.getString("serial_no")));
+
                 if(mySerial.equals(device.getString("serial_no"))){
-                    String pushStatus = device.getString("push_status");
-                    String pullStatus = device.getString("pull_status");
+                    Log.d("DeviceRegistration", "Your device is equal: " + device.toString());
+                    String pushStatus = device.optString("push_status","off");
+                    String pullStatus = device.optString("pull_status","off");
                     if(pushStatus.equals("on")) {
                         downloadData();
                     }
@@ -855,20 +887,38 @@ public class App extends Application {
                     }
 
                     Log.d("DeviceRegistration", "Your device: " + device.toString());
+
+                    if(storedDevice.isSynced()) {
+                        //update shared preferences
+                        SharedPreferences sharedPreferences = getSharedPreferences(Configuration.PREFS_NAME, Context.MODE_PRIVATE);
+                        SharedPreferences.Editor editor = sharedPreferences.edit();
+                        editor.putBoolean(Configuration.KEY_TIME_REGISTER, device.getBoolean("manual_time_entry"));
+                        editor.putBoolean(Configuration.KEY_TIME_REGISTER + "_check_in", device.getBoolean("check_in"));
+                        editor.putBoolean(Configuration.KEY_TIME_REGISTER + "_check_out", device.getBoolean("check_out"));
+                        editor.putBoolean(Configuration.KEY_TIME_REGISTER + "_break_in", device.getBoolean("break_in"));
+                        editor.putBoolean(Configuration.KEY_TIME_REGISTER + "_break_out", device.getBoolean("break_out"));
+                        editor.putBoolean(Configuration.KEY_TIME_REGISTER + "_overtime_in", device.getBoolean("overtime_in"));
+                        editor.putBoolean(Configuration.KEY_TIME_REGISTER + "_overtime_out", device.getBoolean("overtime_out"));
+                        editor.apply();
+                    }
                 }
 
+                Log.d("DeviceRegistration", "Device reaching: " + device.toString());
                 if(storedDevice != null && device.getString("serial_no").equals(storedDevice.getSerialNo()) && !storedDevice.isSynced() ) {
+                    serials[i] = device.getString("serial_no");
                     continue;
                 }
 
+                Log.d("DeviceRegistration", "Device Reached: " + device.optLong("group_id",0));
+
                 deviceRepository.insertOrUpdateDevice(
-                        device.getLong("group_id"),
+                        device.optLong("group_id",0),
                         device.getString("model"),
                         device.getString("serial_no"),
                         device.getDouble("lat"),
                         device.getDouble("lon"),
                         device.getString("created_at"),
-                        intToBoolean(device.getInt("is_online")),
+                        getBooleanValue(device.get("is_online")),
                         device.getString("last_sync"),
                         device.getString("last_activity"),
                         device.getString("logo_url"),
@@ -888,6 +938,15 @@ public class App extends Application {
             e.printStackTrace();
             Log.e("LoginActivity", "Error during device sync: " + e.getMessage(), e);
         }
+    }
+
+    private boolean getBooleanValue(Object value) {
+        if (value instanceof Boolean) {
+            return (Boolean) value;
+        } else if (value instanceof Integer) {
+            return ((Integer) value) != 0;
+        }
+        return false;
     }
 
     private void syncUsersFromWeb(){
@@ -998,7 +1057,6 @@ public class App extends Application {
             }
         });
 
-
     }
 
     public UserDao getUserDao() {
@@ -1006,6 +1064,63 @@ public class App extends Application {
             return daoSession.getUserDao();
         }
         return null;
+    }
+
+    private void syncGroups() {
+
+        if (getAccess().equals("offline")) {
+            return;
+        }
+
+        ExecutorService executor = Executors.newSingleThreadExecutor();
+        executor.execute(() -> {
+
+            try {
+                URL url = new URL(App.BASE_URL + "/sync/groups");
+                HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+                conn.setRequestMethod("GET");
+                conn.setRequestProperty("Accept", "application/json");
+                conn.setRequestProperty("Authorization", "Bearer " + App.TOKEN);
+
+                if (conn.getResponseCode() != 200) {
+                    Log.d("App", "syncGroups : HTTP error code : " + conn.getResponseCode());
+                    throw new RuntimeException("Failed : HTTP error code : " + conn.getResponseCode());
+                }
+
+                BufferedReader br = new BufferedReader(new InputStreamReader((conn.getInputStream())));
+
+                StringBuilder response = new StringBuilder();
+                String output;
+                while ((output = br.readLine()) != null) {
+                    response.append(output);
+                }
+
+                conn.disconnect();
+
+                JSONArray groups = new JSONArray(response.toString());
+                GroupRepository groupRepository = new GroupRepository(this);
+                // Assuming you have a method to reset the groups table
+                groupRepository.resetTable();
+
+                Log.d("GroupActivity", "syncGroups() Groups:: " + groups.toString());
+                for (int i = 0; i < groups.length(); i++) {
+                    JSONObject group = groups.getJSONObject(i);
+
+                    System.out.println("Updated Group: " + group.toString());
+
+                    groupRepository.insertOrUpdateGroup(
+                            group.getLong("id"),
+                            group.getString("name"),
+                            group.getString("created_at"),
+                            group.getString("updated_at"));
+                }
+
+            } catch (Exception e) {
+                e.printStackTrace();
+                Log.e("GroupActivity", "Error during group sync: " + e.getMessage(), e);
+            }
+        });
+
     }
 
     private String escapeJson(String input) {
@@ -1069,84 +1184,87 @@ public class App extends Application {
 
     public void getAnnouncements() {
 
-        String access = getAccess();
-        System.out.println("Access is: " + access);
-
-        if(access.equals("offline")) {
-            return;
-        }
-
-
         ExecutorService executor = Executors.newSingleThreadExecutor();
 
-        LoginDataSource loginDataSource = new LoginDataSource(App.this);
-        LoggedInUser userData = loginDataSource.getUserData(App.this);
-
-        if (userData == null) {
-            Log.e("App", "User data is null. Cannot fetch announcements.");
-            return;
-        }
-
-        if(Objects.equals(userData.getGroupId() ,null)) {
-            Log.e("App", "Group ID is null. Cannot fetch announcements.");
-            return;
-        }
-
-
         executor.execute(() -> {
-            try {
-                URL url = new URL(App.BASE_URL + "/sync/announcements?group_id=" + userData.getGroupId());
-                HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-                conn.setRequestMethod("GET");
-                conn.setRequestProperty("Accept", "application/json");
-                conn.setRequestProperty("Authorization", "Bearer " +getToken(App.this));
 
-                System.out.println("Token is real: " + getToken(App.this));
+            String access = getAccess();
+            System.out.println("Access is: " + access);
 
-                if (conn.getResponseCode() != 200) {
-                    throw new RuntimeException("Failed : HTTP error code : " + conn.getResponseCode());
-                }
-
-                BufferedReader br = new BufferedReader(new InputStreamReader((conn.getInputStream())));
-                StringBuilder response = new StringBuilder();
-                String output;
-                while ((output = br.readLine()) != null) {
-                    response.append(output);
-                }
-
-                conn.disconnect();
-
-                Log.d("Announcement:", response.toString());
-                JSONArray announcements = new JSONArray(response.toString());
-
-                AnnouncementRepository repository = new AnnouncementRepository(App.this);
-                UserRepository userRepository = new UserRepository(App.this);
-                // Process the announcements as needed
-                for (int i = 0; i < announcements.length(); i++) {
-                    JSONObject announcement = announcements.getJSONObject(i);
-
-                    LoggedInUser user = userRepository.getUserByEmail(announcement.getString("email"));
-
-                    if(user == null) {
-                        System.out.println("User not found: " + announcement.getString("email"));
-                        continue;
-                    }
-
-                    if(repository.hasAnnouncement(announcement.getLong("user_id"), announcement.getString("title"), announcement.getString("message"), announcement.getString("expiration"))) {
-                        System.out.println("Announcement already exists: " + announcement.toString());
-                        continue;
-                    }
-
-                    repository.insertAnnouncement(Long.parseLong(user.getUserId()), announcement.getString("title"), announcement.getString("message"), announcement.getString("expiration"));
-                    // Example: Log the announcement details
-                    Log.d("Announcement", "Title: " + announcement.getString("title") + ", Message: " + announcement.getString("message"));
-                }
-
-            } catch (Exception e) {
-                e.printStackTrace();
-                Log.e("App", "Error fetching announcements: " + e.getMessage(), e);
+            if(access.equals("offline")) {
+                return;
             }
+
+            LoginDataSource loginDataSource = new LoginDataSource(App.this);
+            LoggedInUser userData = loginDataSource.getUserData(App.this);
+
+            if (userData == null) {
+                Log.e("App", "User data is null. Cannot fetch announcements.");
+                return;
+            }
+
+            if(Objects.equals(userData.getGroupId() ,null)) {
+                Log.e("App", "Group ID is null. Cannot fetch announcements.");
+                return;
+            }
+
+            executor.execute(() -> {
+                try {
+                    URL url = new URL(App.BASE_URL + "/sync/announcements?group_id=" + userData.getGroupId());
+                    HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+                    conn.setRequestMethod("GET");
+                    conn.setRequestProperty("Accept", "application/json");
+                    conn.setRequestProperty("Authorization", "Bearer " +getToken(App.this));
+
+                    System.out.println("Token is real: " + getToken(App.this));
+
+                    if (conn.getResponseCode() != 200) {
+                        throw new RuntimeException("Failed : HTTP error code : " + conn.getResponseCode());
+                    }
+
+                    BufferedReader br = new BufferedReader(new InputStreamReader((conn.getInputStream())));
+                    StringBuilder response = new StringBuilder();
+                    String output;
+                    while ((output = br.readLine()) != null) {
+                        response.append(output);
+                    }
+
+                    conn.disconnect();
+
+                    Log.d("Announcement:", response.toString());
+                    JSONArray announcements = new JSONArray(response.toString());
+
+                    AnnouncementRepository repository = new AnnouncementRepository(App.this);
+                    UserRepository userRepository = new UserRepository(App.this);
+                    // Process the announcements as needed
+                    for (int i = 0; i < announcements.length(); i++) {
+                        JSONObject announcement = announcements.getJSONObject(i);
+
+                        LoggedInUser user = userRepository.getUserByEmail(announcement.getString("email"));
+
+                        if(user == null) {
+                            repository.insertEmptyUserAnnouncement(announcement.getString("title"), announcement.getString("message"), announcement.getString("expiration"));
+                            System.out.println("User not found: " + announcement.getString("email"));
+                            continue;
+                        }
+
+                        if(repository.hasAnnouncement(Long.parseLong(user.getUserId()), announcement.getString("title"), announcement.getString("message"), announcement.getString("expiration"))) {
+                            System.out.println("Announcement already exists: " + announcement.toString());
+                            continue;
+                        }
+
+                        repository.insertAnnouncement(Long.parseLong(user.getUserId()), announcement.getString("title"), announcement.getString("message"), announcement.getString("expiration"));
+                        // Example: Log the announcement details
+                        Log.d("Announcement", "Title: " + announcement.getString("title") + ", Message: " + announcement.getString("message"));
+                    }
+
+                } catch (Exception e) {
+                    e.printStackTrace();
+                    Log.e("App", "Error fetching announcements: " + e.getMessage(), e);
+                }
+            });
         });
+
     }
 
     private String getAccess()  {
@@ -1216,7 +1334,7 @@ public class App extends Application {
                             entry.getString("datetime"),
                             entry.getString("metadata"),
                             true,
-                            entry.getString("snapshot_path"),
+                            entry.optString("snapshot_path",""),
                             entry.getString("serial_no")
                     );
 
@@ -1562,6 +1680,8 @@ public class App extends Application {
                         File imageFile = imageFiles.get(i);
                         FileInputStream fis = new FileInputStream(imageFile);
 
+                        Log.d("SyncTimeEntriesTask", "Image File: " + imageFile.getName());
+
                         dos.writeBytes("--" + boundary + "\r\n");
                         dos.writeBytes("Content-Disposition: form-data; name=\"snapshots[" + i + "]\"; filename=\"" + imageFile.getName() + "\"\r\n");
                         dos.writeBytes("Content-Type: " + URLConnection.guessContentTypeFromName(imageFile.getName()) + "\r\n\r\n");
@@ -1588,11 +1708,14 @@ public class App extends Application {
                             while ((responseLine = br.readLine()) != null) {
                                 response.append(responseLine.trim());
                             }
-                            Log.e("SyncTimeEntriesTask", "Response: " + response.toString());
+                            Log.e("SyncTimeEntriesTask", "Response: " + response.toString() + " Token: " + token);
                             JSONObject jsonResponse = new JSONObject(response.toString());
                             if (jsonResponse.has("message")) {
                                 errorMessage = jsonResponse.getString("message");
                             }
+                        }catch (Exception e){
+                            refreshToken();
+                            e.printStackTrace();
                         }
                     }
                 } catch (Exception e) {
@@ -1817,6 +1940,18 @@ public class App extends Application {
         return null;
     }
 
+    private String getUserPassword() throws Exception {
+        SharedPreferences sharedPreferences = getSharedPreferences("user_prefs", Context.MODE_PRIVATE);
+        String encryptedData = sharedPreferences.getString("user_data", null);
+        if (encryptedData != null) {
+            byte[] decodedData = Base64.decode(encryptedData, Base64.DEFAULT);
+            String decryptedData = EncryptionUtil.decrypt(decodedData);
+            String[] userData = decryptedData.split(",");
+            return userData[2]; // Assuming the hashed password is the 2nd element in the array
+        }
+        return "";
+    }
+
     public void refreshToken() {
         ExecutorService executor = Executors.newSingleThreadExecutor();
         Handler handler = new Handler(Looper.getMainLooper());
@@ -1853,11 +1988,9 @@ public class App extends Application {
                     // Save the new token to user_prefs
                     // Encrypt the user data
 
-                    System.out.println("The Group ID is: " + userJson.isNull("group_id"));
-
                     long userGroupId = userJson.isNull("group_id") ? 0 : userJson.getLong("group_id");
 //                    System.out.println("The new Encrypt is" + displayName + "," + userJson.getString("email") + "," + "No_Password" + "," + userJson.getLong("group_id")  + "," + userJson.getString("role") + "," + newToken);
-                    byte[] encryptedData = EncryptionUtil.encrypt(displayName + "," + userJson.getString("email") + "," + "No_Password" + "," + userGroupId  + "," + userJson.getString("role") + "," + newToken);
+                    byte[] encryptedData = EncryptionUtil.encrypt(displayName + "," + userJson.getString("email") + "," + getUserPassword() + "," + userGroupId  + "," + userJson.getString("role") + "," + newToken);
 
                     SharedPreferences sharedPreferences = getSharedPreferences("user_prefs", Context.MODE_PRIVATE);
                     SharedPreferences.Editor editor = sharedPreferences.edit();
@@ -1882,6 +2015,7 @@ public class App extends Application {
                             @Override
                             public void onSuccess() {
                                 Log.d("RefreshToken", "Time entries synced successfully");
+
                             }
 
                             @Override

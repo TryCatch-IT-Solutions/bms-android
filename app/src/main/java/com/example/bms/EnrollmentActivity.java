@@ -142,8 +142,7 @@ public class EnrollmentActivity extends AppCompatActivity {
 
         mProgressDialog = new ProgressDialog(this);
 
-        Objects.requireNonNull(getWindow().getInsetsController()).hide(WindowInsetsCompat.Type.systemBars());
-
+//        Objects.requireNonNull(getWindow().getInsetsController()).hide(WindowInsetsCompat.Type.systemBars());
 
         dbHelper = new DatabaseHelper(this);
 
@@ -330,11 +329,11 @@ public class EnrollmentActivity extends AppCompatActivity {
                 return;
             }
 
-            if (address2.isEmpty()) {
-                Toast.makeText(this, "Please enter your address line 2", Toast.LENGTH_SHORT).show();
-                address2Input.requestFocus();
-                return;
-            }
+//            if (address2.isEmpty()) {
+//                Toast.makeText(this, "Please enter your address line 2", Toast.LENGTH_SHORT).show();
+//                address2Input.requestFocus();
+//                return;
+//            }
 
             if (barangay.isEmpty()) {
                 Toast.makeText(this, "Please enter your barangay", Toast.LENGTH_SHORT).show();
@@ -433,6 +432,9 @@ public class EnrollmentActivity extends AppCompatActivity {
             new Handler(Looper.getMainLooper()).postDelayed(new Runnable() {
                 @Override
                 public void run() {
+                    if(sweetAlertDialog != null){
+                        sweetAlertDialog.dismiss();
+                    }
                     sweetAlertDialog =  new SweetAlertDialog(EnrollmentActivity.this, SweetAlertDialog.PROGRESS_TYPE);
                     sweetAlertDialog.setTitleText("Saving Enrollment");
                     sweetAlertDialog.show();
@@ -445,6 +447,8 @@ public class EnrollmentActivity extends AppCompatActivity {
 
             SharedPreferences sharedPreferences = getSharedPreferences(GroupActivity.PREFS_NAME, Context.MODE_PRIVATE);
             String savedGroupId = sharedPreferences.getString(GroupActivity.KEY_SELECTED_GROUP, null);
+
+            Log.d("savedGroupId", "savedGroupId: " + Integer.parseInt(savedGroupId));
 
             long user_id = userRepository.insertUser(Integer.parseInt(savedGroupId), firstName, middleName,
                     lastName, address1, address2, barangay, municipality, province, birthDate,
@@ -460,6 +464,8 @@ public class EnrollmentActivity extends AppCompatActivity {
             if (fingerDataMap != null) {
                 long biometric_id = biometricRepository.insertBiometric(null, user_id, "fingerprint");
                 FingerprintRepository fingerprintRepository = new FingerprintRepository(this);
+//                fingerprintRepository.updateNewFingerprints(biometric_id);
+
                 for (int i = 0; i < fingerDataMap.size(); i++) {
                     fingerprintRepository.insertFingerprint(biometric_id, fingerDataMap.get(i));
                 }

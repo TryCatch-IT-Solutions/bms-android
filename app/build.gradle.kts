@@ -9,7 +9,7 @@ android {
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "com.dai.bms"
+        applicationId = "com.example.bms"
         minSdk = 30
         targetSdk = 33
         versionCode = 1
@@ -113,7 +113,7 @@ dependencies {
     implementation("androidx.appcompat:appcompat:1.6.1")
     implementation("com.airbnb.android:lottie:6.6.2")
 
-    api(files("libs/fingerprintv3.aar"))
+    api(files("libs/fingerprintv2.aar"))
     api(files("libs/facepass.aar"))
 
 }

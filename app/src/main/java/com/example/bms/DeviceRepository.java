@@ -5,6 +5,9 @@ import android.content.Context;
 import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
 
+import java.util.ArrayList;
+import java.util.List;
+
 public class DeviceRepository {
 
     private DatabaseHelper databaseHelper;
@@ -161,6 +164,38 @@ public class DeviceRepository {
             db.close();
             return null;
         }
+    }
+
+    public String getGroupModel(long groupId) {
+        SQLiteDatabase db = databaseHelper.getReadableDatabase();
+        Cursor cursor = db.rawQuery("SELECT " + DatabaseHelper.COLUMN_MODEL + " FROM " + DatabaseHelper.TABLE_DEVICES + " WHERE " + DatabaseHelper.COLUMN_GROUP_ID + " = ? LIMIT 1", new String[]{String.valueOf(groupId)});
+
+        if (cursor.moveToFirst()) {
+            String model = cursor.getString(cursor.getColumnIndexOrThrow(DatabaseHelper.COLUMN_MODEL));
+            cursor.close();
+            db.close();
+            return model;
+        } else {
+            cursor.close();
+            db.close();
+            return null;
+        }
+    }
+
+    public List<Long> getModelGroupIds(String model) {
+        SQLiteDatabase db = databaseHelper.getReadableDatabase();
+        Cursor cursor = db.rawQuery("SELECT " + DatabaseHelper.COLUMN_GROUP_ID + " FROM " + DatabaseHelper.TABLE_DEVICES + " WHERE " + DatabaseHelper.COLUMN_MODEL + " = ?", new String[]{model});
+        List<Long> groupIds = new ArrayList<>();
+
+        if (cursor.moveToFirst()) {
+            do {
+                long groupId = cursor.getLong(cursor.getColumnIndexOrThrow(DatabaseHelper.COLUMN_GROUP_ID));
+                groupIds.add(groupId);
+            } while (cursor.moveToNext());
+        }
+        cursor.close();
+        db.close();
+        return groupIds;
     }
 
     public long getModelGroupId(String model) {

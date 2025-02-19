@@ -19,5 +19,6 @@
 
     <color name="base">#FF018786</color>
     <color name="gray_btn_bg_color">#D0D0D0</color>
+    <color name="error_stroke_color">#F27474</color>
 
 </resources>

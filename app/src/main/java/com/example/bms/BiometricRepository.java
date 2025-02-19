@@ -58,7 +58,9 @@ public class BiometricRepository {
         SQLiteDatabase db = dbHelper.getReadableDatabase();
         Biometric biometric = null;
 
-        String query = "SELECT * FROM " + DatabaseHelper.TABLE_BIOMETRICS + " WHERE " + DatabaseHelper.COLUMN_KEY + " = ? AND " + DatabaseHelper.COLUMN_TYPE + " = ?";
+        String query = "SELECT b.* FROM " + DatabaseHelper.TABLE_BIOMETRICS + " b " +
+                "JOIN " + DatabaseHelper.TABLE_USERS + " u ON b." + DatabaseHelper.COLUMN_USER_ID + " = u." + DatabaseHelper.COLUMN_ID + " " +
+                "WHERE b." + DatabaseHelper.COLUMN_KEY + " = ? AND b." + DatabaseHelper.COLUMN_TYPE + " = ? AND u." + DatabaseHelper.COLUMN_STATUS + " = 'active'";
         Cursor cursor = db.rawQuery(query, new String[]{key, "face"});
 
         if (cursor.moveToFirst()) {

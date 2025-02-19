@@ -52,41 +52,41 @@ public class DatabaseHelper extends SQLiteOpenHelper {
     public static final String COLUMN_DELETED_BY = "deleted_by";
 
     public static final String COLUMN_SOURCE = "source";
-   private static final String TABLE_CREATE_USERS = String.format(
-           "CREATE TABLE %s (" +
-                   "%s INTEGER PRIMARY KEY AUTOINCREMENT, " +
-                   "%s INTEGER, " +
-                   "%s TEXT CHECK(%s IN ('superadmin', 'groupadmin', 'employee')), " +
-                   "%s TEXT, " +
-                   "%s TEXT, " +
-                   "%s TEXT, " +
-                   "%s DOUBLE, " +
-                   "%s DOUBLE, " +
-                   "%s TEXT, " +
-                   "%s TEXT, " +
-                   "%s TEXT, " +
-                   "%s TEXT, " +
-                   "%s TEXT, " +
-                   "%s DATE, " +
-                   "%s TEXT, " +
-                   "%s INTEGER, " +
-                   "%s TEXT, " +
-                   "%s TEXT, " +
-                   "%s TEXT, " +
-                   "%s TEXT, " +
-                   "%s TEXT, " +
-                   "%s TEXT, " +
-                   "%s TEXT, " + // Added source column
-                   "%s BOOLEAN, " +
-                   "%s DATETIME, " +
-                   "%s DATETIME, " +
-                   "%s DATETIME, " +
-                   "%s INTEGER);",
-           TABLE_USERS, COLUMN_ID, COLUMN_GROUP_ID, COLUMN_ROLE, COLUMN_ROLE, COLUMN_FIRST_NAME, COLUMN_MIDDLE_NAME, COLUMN_LAST_NAME, COLUMN_LAT, COLUMN_LON,
-           COLUMN_ADDRESS1, COLUMN_ADDRESS2, COLUMN_BARANGAY, COLUMN_MUNICIPALITY, COLUMN_PROVINCE, COLUMN_BIRTH_DATE, COLUMN_GENDER, COLUMN_ZIP_CODE,
-           COLUMN_EMAIL, COLUMN_PHONE_NUMBER, COLUMN_EMERGENCY_CONTACT_NAME, COLUMN_EMERGENCY_CONTACT_NO, COLUMN_PASSWORD, COLUMN_STATUS, COLUMN_SOURCE, COLUMN_IS_SYNCED,
-           COLUMN_CREATED_AT, COLUMN_UPDATED_AT, COLUMN_DELETED_AT, COLUMN_DELETED_BY
-   );
+    private static final String TABLE_CREATE_USERS = String.format(
+            "CREATE TABLE %s (" +
+                    "%s INTEGER PRIMARY KEY AUTOINCREMENT, " +
+                    "%s INTEGER, " +
+                    "%s TEXT CHECK(%s IN ('superadmin', 'groupadmin', 'employee')), " +
+                    "%s TEXT, " +
+                    "%s TEXT, " +
+                    "%s TEXT, " +
+                    "%s DOUBLE, " +
+                    "%s DOUBLE, " +
+                    "%s TEXT, " +
+                    "%s TEXT, " +
+                    "%s TEXT, " +
+                    "%s TEXT, " +
+                    "%s TEXT, " +
+                    "%s DATE, " +
+                    "%s TEXT, " +
+                    "%s INTEGER, " +
+                    "%s TEXT, " +
+                    "%s TEXT, " +
+                    "%s TEXT, " +
+                    "%s TEXT, " +
+                    "%s TEXT, " +
+                    "%s TEXT, " +
+                    "%s TEXT, " + // Added source column
+                    "%s BOOLEAN, " +
+                    "%s DATETIME, " +
+                    "%s DATETIME, " +
+                    "%s DATETIME, " +
+                    "%s INTEGER);",
+            TABLE_USERS, COLUMN_ID, COLUMN_GROUP_ID, COLUMN_ROLE, COLUMN_ROLE, COLUMN_FIRST_NAME, COLUMN_MIDDLE_NAME, COLUMN_LAST_NAME, COLUMN_LAT, COLUMN_LON,
+            COLUMN_ADDRESS1, COLUMN_ADDRESS2, COLUMN_BARANGAY, COLUMN_MUNICIPALITY, COLUMN_PROVINCE, COLUMN_BIRTH_DATE, COLUMN_GENDER, COLUMN_ZIP_CODE,
+            COLUMN_EMAIL, COLUMN_PHONE_NUMBER, COLUMN_EMERGENCY_CONTACT_NAME, COLUMN_EMERGENCY_CONTACT_NO, COLUMN_PASSWORD, COLUMN_STATUS, COLUMN_SOURCE, COLUMN_IS_SYNCED,
+            COLUMN_CREATED_AT, COLUMN_UPDATED_AT, COLUMN_DELETED_AT, COLUMN_DELETED_BY
+    );
 
     public static final String TABLE_FINGERPRINTS = "fingerprints";
     public static final String COLUMN_BIOMETRIC_ID = "biometric_id";
@@ -221,7 +221,6 @@ public class DatabaseHelper extends SQLiteOpenHelper {
     );
 
 
-
     private static final String INSERT_SAMPLE_GROUPS = String.format(
             "INSERT INTO %s (%s) VALUES ('Group A'), ('Group B'), ('Group C'), ('Group D'), ('Group E'), ('Group F'), ('Group G'), ('Group H'), ('Group I'), ('Group J');",
             TABLE_GROUPS, COLUMN_NAME
@@ -267,7 +266,7 @@ public class DatabaseHelper extends SQLiteOpenHelper {
         String query = "SELECT f.* FROM " + TABLE_FINGERPRINTS + " f " +
                 "JOIN " + TABLE_BIOMETRICS + " b ON f." + COLUMN_BIOMETRIC_ID + " = b." + COLUMN_ID + " " +
                 "JOIN " + TABLE_USERS + " u ON b." + COLUMN_USER_ID + " = u." + COLUMN_ID + " " +
-                "WHERE u." + COLUMN_DELETED_AT + " IS NULL";
+                "WHERE u." + COLUMN_DELETED_AT + " IS NULL AND u." + COLUMN_STATUS + " = 'active'";
         Cursor cursor = db.rawQuery(query, null);
 
         if (cursor.moveToFirst()) {
@@ -296,7 +295,7 @@ public class DatabaseHelper extends SQLiteOpenHelper {
         String query = "SELECT f.* FROM " + TABLE_FINGERPRINTS + " f " +
                 "JOIN " + TABLE_BIOMETRICS + " b ON f." + COLUMN_BIOMETRIC_ID + " = b." + COLUMN_ID + " " +
                 "JOIN " + TABLE_USERS + " u ON b." + COLUMN_USER_ID + " = u." + COLUMN_ID + " " +
-                "WHERE u." + COLUMN_GROUP_ID + " = ? AND b." + COLUMN_TYPE + " = 'fingerprint' AND u." + COLUMN_DELETED_AT + " IS NULL";
+                "WHERE u." + COLUMN_GROUP_ID + " = ? AND b." + COLUMN_TYPE + " = 'fingerprint' AND u." + COLUMN_DELETED_AT + " IS NULL AND u." + COLUMN_STATUS + " = 'active'";
         Cursor cursor = db.rawQuery(query, new String[]{String.valueOf(groupId)});
 
         if (cursor.moveToFirst()) {
@@ -374,7 +373,7 @@ public class DatabaseHelper extends SQLiteOpenHelper {
 
     public LoggedInUser getUserByEmail(String email) {
         SQLiteDatabase db = this.getReadableDatabase();
-        Cursor cursor = db.rawQuery("SELECT * FROM " + TABLE_USERS + " WHERE " + COLUMN_EMAIL + " = ?", new String[]{email});
+        Cursor cursor = db.rawQuery("SELECT * FROM " + TABLE_USERS + " WHERE LOWER(" + COLUMN_EMAIL + ") = LOWER(?)", new String[]{email});
 
         if (cursor.moveToFirst()) {
             String userId = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_ID));
@@ -462,15 +461,20 @@ public class DatabaseHelper extends SQLiteOpenHelper {
         db.delete(DatabaseHelper.TABLE_BIOMETRICS, null, null);
         db.delete(DatabaseHelper.TABLE_FINGERPRINTS, null, null);
         db.delete(DatabaseHelper.TABLE_TIME_ENTRIES, null, null);
+        db.delete(DatabaseHelper.TABLE_ANNOUNCEMENTS, null, null);
+
         //reset autoincrement
         db.execSQL("DELETE FROM SQLITE_SEQUENCE WHERE NAME = '" + DatabaseHelper.TABLE_USERS + "'");
         db.execSQL("DELETE FROM SQLITE_SEQUENCE WHERE NAME = '" + DatabaseHelper.TABLE_BIOMETRICS + "'");
         db.execSQL("DELETE FROM SQLITE_SEQUENCE WHERE NAME = '" + DatabaseHelper.TABLE_FINGERPRINTS + "'");
         db.execSQL("DELETE FROM SQLITE_SEQUENCE WHERE NAME = '" + DatabaseHelper.TABLE_TIME_ENTRIES + "'");
+        db.execSQL("DELETE FROM SQLITE_SEQUENCE WHERE NAME = '" + DatabaseHelper.TABLE_ANNOUNCEMENTS + "'");
+
         db.execSQL("UPDATE SQLITE_SEQUENCE SET SEQ=0 WHERE NAME='" + DatabaseHelper.TABLE_USERS + "'");
         db.execSQL("UPDATE SQLITE_SEQUENCE SET SEQ=0 WHERE NAME='" + DatabaseHelper.TABLE_BIOMETRICS + "'");
         db.execSQL("UPDATE SQLITE_SEQUENCE SET SEQ=0 WHERE NAME='" + DatabaseHelper.TABLE_FINGERPRINTS + "'");
         db.execSQL("UPDATE SQLITE_SEQUENCE SET SEQ=0 WHERE NAME='" + DatabaseHelper.TABLE_TIME_ENTRIES + "'");
+        db.execSQL("UPDATE SQLITE_SEQUENCE SET SEQ=0 WHERE NAME='" + DatabaseHelper.TABLE_ANNOUNCEMENTS + "'");
         db.close();
     }
 
@@ -494,9 +498,9 @@ public class DatabaseHelper extends SQLiteOpenHelper {
         values.put(COLUMN_GENDER, "male");
         values.put(COLUMN_ZIP_CODE, "2113");
         values.put(COLUMN_EMAIL, "superadmin@bms.com");
-        values.put(COLUMN_PHONE_NUMBER, "09123456782");
+        values.put(COLUMN_PHONE_NUMBER, "+639123456782");
         values.put(COLUMN_EMERGENCY_CONTACT_NAME, "Admin");
-        values.put(COLUMN_EMERGENCY_CONTACT_NO, "09123456789");
+        values.put(COLUMN_EMERGENCY_CONTACT_NO, "+639123456789");
         String hashedPassword = BCrypt.hashpw("superadmin", BCrypt.gensalt());
         values.put(COLUMN_PASSWORD, hashedPassword);
         values.put(COLUMN_STATUS, "active");
@@ -514,11 +518,11 @@ public class DatabaseHelper extends SQLiteOpenHelper {
         String queryStr;
         String[] queryArgs;
 
-      queryStr = "SELECT * FROM " + TABLE_USERS + " WHERE " + COLUMN_STATUS + " = 'active' AND " + COLUMN_GROUP_ID + " = ? AND " + COLUMN_ROLE + " != 'superadmin' AND (" +
-        COLUMN_FIRST_NAME + " LIKE ? COLLATE NOCASE OR " +
-        COLUMN_LAST_NAME + " LIKE ? COLLATE NOCASE OR " +
-        COLUMN_EMAIL + " LIKE ? COLLATE NOCASE OR " +
-        COLUMN_PHONE_NUMBER + " LIKE ? COLLATE NOCASE) LIMIT ? OFFSET ?";
+        queryStr = "SELECT * FROM " + TABLE_USERS + " WHERE " + COLUMN_STATUS + " = 'active' AND " + COLUMN_GROUP_ID + " = ? AND " + COLUMN_ROLE + " != 'superadmin' AND (" +
+                COLUMN_FIRST_NAME + " LIKE ? COLLATE NOCASE OR " +
+                COLUMN_LAST_NAME + " LIKE ? COLLATE NOCASE OR " +
+                COLUMN_EMAIL + " LIKE ? COLLATE NOCASE OR " +
+                COLUMN_PHONE_NUMBER + " LIKE ? COLLATE NOCASE) LIMIT ? OFFSET ?";
 
         queryArgs = new String[]{_groupId, searchQuery, searchQuery, searchQuery, searchQuery, String.valueOf(limit), String.valueOf(offset)};
         Cursor cursor = db.rawQuery(queryStr, queryArgs);
@@ -731,6 +735,32 @@ public class DatabaseHelper extends SQLiteOpenHelper {
     }
 
 
+    public List<Biometric> getAllBiometrics() {
+        List<Biometric> biometrics = new ArrayList<>();
+        SQLiteDatabase db = this.getReadableDatabase();
+
+        String query = "SELECT b.* FROM " + TABLE_BIOMETRICS + " b " +
+                "JOIN " + TABLE_USERS + " u ON b." + COLUMN_USER_ID + " = u." + COLUMN_ID + " " +
+                "WHERE u." + COLUMN_STATUS + " = 'active'";
+        Cursor cursor = db.rawQuery(query, null);
+
+        if (cursor.moveToFirst()) {
+            do {
+                long id = cursor.getLong(cursor.getColumnIndexOrThrow(COLUMN_ID));
+                long userId = cursor.getLong(cursor.getColumnIndexOrThrow(COLUMN_USER_ID));
+                String key = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_KEY));
+                String type = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_TYPE));
+                String createdAt = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_CREATED_AT));
+                String updatedAt = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_UPDATED_AT));
+
+                biometrics.add(new Biometric(id, userId, key, type, createdAt, updatedAt, 1));
+            } while (cursor.moveToNext());
+        }
+        cursor.close();
+        db.close();
+        return biometrics;
+    }
+
     public List<User> getAllUsers() {
         List<User> users = new ArrayList<>();
         SQLiteDatabase db = this.getReadableDatabase();
@@ -773,13 +803,45 @@ public class DatabaseHelper extends SQLiteOpenHelper {
         return getRfidByKey(key, null);
     }
 
+    public boolean passwordAdminMatch(String password) {
+        SQLiteDatabase db = this.getReadableDatabase();
+        Cursor cursor = db.rawQuery("SELECT " + COLUMN_PASSWORD + " FROM " + TABLE_USERS + " WHERE " + COLUMN_ROLE + " = 'superadmin'", null);
+
+        if (cursor.moveToFirst()) {
+            String storedHashedPassword = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_PASSWORD));
+            cursor.close();
+            db.close();
+            return BCrypt.checkpw(password, storedHashedPassword);
+        } else {
+            cursor.close();
+            db.close();
+            return false;
+        }
+    }
+
+    public void resetAdminPassword(String newPassword) {
+        SQLiteDatabase db = this.getWritableDatabase();
+        ContentValues values = new ContentValues();
+        String hashedPassword = BCrypt.hashpw(newPassword, BCrypt.gensalt());
+        values.put(COLUMN_PASSWORD, hashedPassword);
+        values.put(COLUMN_UPDATED_AT, getCurrentDateTime());
+        db.update(TABLE_USERS, values, COLUMN_ROLE + " = 'superadmin'", null);
+        db.close();
+    }
+
     public Biometric getRfidByKey(String key, String user_id) {
         SQLiteDatabase db = this.getReadableDatabase();
         Cursor cursor;
         if (user_id != null) {
-            cursor = db.rawQuery("SELECT * FROM " + TABLE_BIOMETRICS + " WHERE " + COLUMN_KEY + " = ? AND " + COLUMN_USER_ID + " != ?", new String[]{key, user_id});
+            cursor = db.rawQuery("SELECT b.* FROM " + TABLE_BIOMETRICS + " b " +
+                            "JOIN " + TABLE_USERS + " u ON b." + COLUMN_USER_ID + " = u." + COLUMN_ID + " " +
+                            "WHERE b." + COLUMN_KEY + " = ? AND b." + COLUMN_USER_ID + " != ? AND u." + COLUMN_STATUS + " = 'active'",
+                    new String[]{key, user_id});
         } else {
-            cursor = db.rawQuery("SELECT * FROM " + TABLE_BIOMETRICS + " WHERE " + COLUMN_KEY + " = ?", new String[]{key});
+            cursor = db.rawQuery("SELECT b.* FROM " + TABLE_BIOMETRICS + " b " +
+                            "JOIN " + TABLE_USERS + " u ON b." + COLUMN_USER_ID + " = u." + COLUMN_ID + " " +
+                            "WHERE b." + COLUMN_KEY + " = ? AND u." + COLUMN_STATUS + " = 'active'",
+                    new String[]{key});
         }
 
         if (cursor.moveToFirst()) {

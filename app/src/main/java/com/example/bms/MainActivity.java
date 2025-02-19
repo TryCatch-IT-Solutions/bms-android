@@ -8,9 +8,12 @@ import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
+import android.net.ConnectivityManager;
+import android.net.NetworkInfo;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
+import android.os.Looper;
 import android.os.PowerManager;
 import android.util.Base64;
 import android.util.Log;
@@ -33,6 +36,7 @@ import androidx.core.view.WindowInsetsCompat;
 import com.example.bms.data.LoginDataSource;
 import com.example.bms.enrollment.EnrollmentList;
 import com.example.bms.time_entry.TimeEntryRegister;
+import com.example.bms.ui.login.LoginActivity;
 import com.google.android.gms.common.ConnectionResult;
 import com.google.android.gms.common.GoogleApiAvailability;
 import com.google.android.gms.location.FusedLocationProviderClient;
@@ -43,6 +47,7 @@ import com.google.android.gms.location.LocationResult;
 import com.google.android.gms.location.LocationServices;
 import com.google.android.gms.location.Priority;
 
+import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
@@ -68,6 +73,7 @@ public class MainActivity extends AppCompatActivity {
     DatabaseHelper databaseHelper;
     double latitude = 0, longitude = 0;
 
+    Boolean isSyncing = false;
 
     private DevicePolicyManager devicePolicyManager;
     private ComponentName adminComponent;
@@ -411,6 +417,162 @@ public class MainActivity extends AppCompatActivity {
         return sharedPreferences.getString("PRIMARY_LOGO", null);
     }
 
+    private boolean isInternetAvailable(Context context) {
+        ConnectivityManager connectivityManager = (ConnectivityManager) context.getSystemService(Context.CONNECTIVITY_SERVICE);
+        if (connectivityManager != null) {
+            NetworkInfo activeNetworkInfo = connectivityManager.getActiveNetworkInfo();
+            return activeNetworkInfo != null && activeNetworkInfo.isConnected();
+        }
+        return false;
+    }
+
+    private void syncGroups() {
+
+        if (getAccess().equals("offline")) {
+            return;
+        }
+
+        try {
+            URL url = new URL(App.BASE_URL + "/sync/groups");
+            HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+            conn.setRequestMethod("GET");
+            conn.setRequestProperty("Accept", "application/json");
+            conn.setRequestProperty("Authorization", "Bearer " + App.TOKEN);
+
+            if (conn.getResponseCode() != 200) {
+                new SweetAlertDialog(MainActivity.this, SweetAlertDialog.ERROR_TYPE)
+                        .setTitleText("Failed to sync groups")
+                        .setContentText("Failed to sync groups from the server. Please close the app, and try again.")
+                        .show();
+                throw new RuntimeException("Failed : HTTP error code : " + conn.getResponseCode());
+            }
+
+            BufferedReader br = new BufferedReader(new InputStreamReader((conn.getInputStream())));
+
+            StringBuilder response = new StringBuilder();
+            String output;
+            while ((output = br.readLine()) != null) {
+                response.append(output);
+            }
+
+            conn.disconnect();
+
+            JSONArray groups = new JSONArray(response.toString());
+            GroupRepository groupRepository = new GroupRepository(this);
+            // Assuming you have a method to reset the groups table
+            groupRepository.resetTable();
+
+            for (int i = 0; i < groups.length(); i++) {
+                JSONObject group = groups.getJSONObject(i);
+
+                System.out.println("Group: " + group.toString());
+
+                groupRepository.insertGroup(
+                        group.getLong("id"),
+                        group.getString("name"),
+                        group.getString("created_at"),
+                        group.getString("updated_at"));
+            }
+
+            new Handler(Looper.getMainLooper()).postDelayed(new Runnable() {
+                @Override
+                public void run() {
+                    ExecutorService executor = Executors.newSingleThreadExecutor();
+                    executor.execute(MainActivity.this::syncUsers);
+                }
+            }, 100);
+
+        } catch (Exception e) {
+            e.printStackTrace();
+            Log.e("GroupActivity", "Error during group sync: " + e.getMessage(), e);
+        }
+    }
+
+    private void syncUsers() {
+        try {
+            URL url = new URL(App.BASE_URL + "/sync/users/login");
+            HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+            conn.setRequestMethod("GET");
+            conn.setRequestProperty("Accept", "application/json");
+            conn.setRequestProperty("Authorization", "Bearer " + App.TOKEN);
+
+            if (conn.getResponseCode() != 200) {
+                throw new RuntimeException("Failed : HTTP error code : " + conn.getResponseCode());
+            }
+
+            BufferedReader br = new BufferedReader(new InputStreamReader((conn.getInputStream())));
+
+            StringBuilder response = new StringBuilder();
+            String output;
+            while ((output = br.readLine()) != null) {
+                response.append(output);
+            }
+
+            conn.disconnect();
+
+            Log.d("Response 1:", response.toString());
+            JSONArray users = new JSONArray(response.toString());
+            UserRepository userRepository = new UserRepository(this);
+            userRepository.resetUsersTable();
+
+            BiometricRepository biometricRepository = new BiometricRepository(MainActivity.this);
+            FingerprintRepository fingerprintRepository = new FingerprintRepository(MainActivity.this);
+
+            for (int i = 0; i < users.length(); i++) {
+                JSONObject user = users.getJSONObject(i);
+
+                System.out.println("User: " + user.toString());
+
+                long groupId = user.isNull("group_id") ? 0 : user.getLong("group_id");
+                long userId = userRepository.insertSyncUser(
+                        groupId,
+                        user.getString("first_name"),
+                        user.getString("middle_name"),
+                        user.getString("last_name"),
+                        user.getString("address1"),
+                        user.getString("address2"),
+                        user.getString("barangay"),
+                        user.getString("municipality"),
+                        user.getString("province"),
+                        user.getString("birth_date"),
+                        user.getString("gender"),
+                        user.getInt("zip_code"),
+                        0,
+                        0,
+                        user.getString("email"),
+                        user.getString("phone_number"),
+                        user.getString("emergency_contact_no"),
+                        user.getString("emergency_contact_name"),
+                        user.getString("role"),
+                        user.getString("password"),
+                        user.getString("created_at"));
+
+                JSONArray biometrics = user.getJSONArray("biometrics");
+                for (int j = 0; j < biometrics.length(); j++) {
+                    JSONObject biometric = biometrics.getJSONObject(j);
+                    long biometricId = biometricRepository.insertBiometric(
+                            biometric.getString("key"),
+                            userId,
+                            biometric.getString("type"));
+
+                    JSONArray fingerprints = biometric.getJSONArray("fingerprints");
+                    for (int k = 0; k < fingerprints.length(); k++) {
+                        JSONObject fingerprint = fingerprints.getJSONObject(k);
+
+                        fingerprintRepository.insertFingerprint(
+                                biometricId,
+                                fingerprint.getString("key")
+                        );
+                    }
+                }
+            }
+
+        } catch (Exception e) {
+            e.printStackTrace();
+            Log.e("LoginActivity", "Error during user sync: " + e.getMessage(), e);
+        }
+    }
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -418,6 +580,8 @@ public class MainActivity extends AppCompatActivity {
         setContentView(R.layout.activity_main);
 
         databaseHelper  = new DatabaseHelper(this);
+
+        ((App) getApplication()).getAnnouncements();
 
         Log.d("Device", "DeviceGroupId: " + getDeviceGroupId());
 
@@ -455,7 +619,7 @@ public class MainActivity extends AppCompatActivity {
         Button btnGroup = findViewById(R.id.btn_group);
 
 
-        if(getRole().equals("groupadmin")){
+        if(getRole().equals("groupadmin") || getAccess().equals("offline")){
             btnGroup.setVisibility(View.GONE);
         }
 
@@ -465,6 +629,20 @@ public class MainActivity extends AppCompatActivity {
         btnGroup.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
+
+                if (!isInternetAvailable(MainActivity.this)) {
+                    SweetAlertDialog sweetAlertDialog1 = new SweetAlertDialog(MainActivity.this, SweetAlertDialog.ERROR_TYPE)
+                            .setTitleText("No internet connection")
+                            .setContentText("Please connect to the internet and try again.")
+                            .setConfirmClickListener(sweetAlertDialog -> {
+                                sweetAlertDialog.dismissWithAnimation();
+                                finish();
+                            });
+                    sweetAlertDialog1.setCancelable(false);
+                    sweetAlertDialog1.show();
+                    return;
+                }
+
                 Intent intent = new Intent(MainActivity.this, GroupActivity.class);
                 startActivity(intent);
                 finish();
@@ -525,6 +703,10 @@ public class MainActivity extends AppCompatActivity {
                         ((App) getApplication()).syncTimeEntriesOnLogout(MainActivity.this, new App.SyncCallback() {
                             @Override
                             public void onSuccess() {
+
+                                AnnouncementRepository announcementRepository = new AnnouncementRepository(MainActivity.this);
+                                announcementRepository.resetTable();
+
                                 dialog.dismiss();
                                 LoginDataSource loginDataSource = new LoginDataSource(MainActivity.this);
                                 loginDataSource.logout(MainActivity.this);

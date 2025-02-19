@@ -43,6 +43,7 @@ public class GroupActivity extends AppCompatActivity {
     public static final String KEY_SELECTED_GROUP = "selected_group";
     private MutableLiveData<LoginResult> loginResult = new MutableLiveData<>();
 
+    SweetAlertDialog sweetAlertDialog;
 
     @SuppressLint("HardwareIds")
     @Override
@@ -73,7 +74,24 @@ public class GroupActivity extends AppCompatActivity {
         }
     }
 
-    private void initMain(){
+    private String getUserGroupId() {
+        SharedPreferences sharedPreferences = getSharedPreferences("user_prefs", Context.MODE_PRIVATE);
+        String encryptedData = sharedPreferences.getString("user_data", null);
+        if (encryptedData != null) {
+          try {
+              byte[] decodedData = Base64.decode(encryptedData, Base64.DEFAULT);
+              String decryptedData = EncryptionUtil.decrypt(decodedData);
+              String[] userData = decryptedData.split(",");
+              return userData[3];
+          }catch (Exception e){
+              e.printStackTrace();
+              return "0";
+          }
+        }
+        return null;
+    }
+
+    private void initMain() {
 
         recyclerView = findViewById(R.id.recycler_view_groups);
         groupRepository = new GroupRepository(this);
@@ -83,14 +101,13 @@ public class GroupActivity extends AppCompatActivity {
         LoggedInUser data = loginDataSource.getUserData(this);
 
         List<Group> groupList = Collections.emptyList();
-        if(data.getRole().equals("groupadmin")) {
+        if (data.getRole().equals("groupadmin")) {
             groupList = groupRepository.getGroup(data.getGroupId());
         } else if (data.getRole().equals("superadmin")) {
             groupList = groupRepository.getAllGroups();
-            Log.d("Group","Groups: " + groupList);
+            Log.d("Group", "Groups: " + groupList);
         }
 
-        Log.d("Group","GroupsHere: " + groupList);
 
 
         adapter = new GroupAdapter(groupList);
@@ -99,34 +116,74 @@ public class GroupActivity extends AppCompatActivity {
 
         sharedPreferences = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
         String savedGroupId = sharedPreferences.getString(KEY_SELECTED_GROUP, null);
+
+        Log.d("Group", "Saved Group Id: " + savedGroupId);
+
         if (savedGroupId != null) {
             for (Group group : groupList) {
                 if (group.getId() == Long.parseLong(savedGroupId)) {
                     adapter.setSelectedGroup(group);
+                    adapter.notifyDataSetChanged();
                     break;
                 }
             }
+        } else {
+            //get model group
+            long modelGroupId = deviceRepository.getModelGroupId(Build.MODEL);
+
+            Log.d("Group", "Model Group Id: " + modelGroupId);
+            for (Group group : groupList) {
+                if (group.getId() == Long.parseLong(getUserGroupId())) {
+                    adapter.setSelectedGroup(group);
+                    adapter.notifyDataSetChanged();
+                    break;
+                }
+            }
+//            if (modelGroupId != -1) {
+//                for (Group group : groupList) {
+//                    if (group.getId() == modelGroupId) {
+//                        adapter.setSelectedGroup(group);
+//                        adapter.notifyDataSetChanged();
+//                        break;
+//                    }
+//                }
+//            }
         }
 
+
         findViewById(R.id.button_save).setOnClickListener(v -> {
+
+
+            runOnUiThread(() -> {
+                sweetAlertDialog = new SweetAlertDialog(GroupActivity.this, SweetAlertDialog.PROGRESS_TYPE);
+                sweetAlertDialog.setTitleText("Saving Group");
+                sweetAlertDialog.setCancelable(false);
+                sweetAlertDialog.show();
+            });
+
 
             Group selectedGroup = adapter.getSelectedGroup();
             if (selectedGroup != null) {
 
                 DeviceRepository deviceRepository = new DeviceRepository(GroupActivity.this);
-                long deviceGroupId = deviceRepository.getModelGroupId(Build.MODEL);
+                List<Long> deviceGroupIds = deviceRepository.getModelGroupIds(Build.MODEL);
+                String groupModel = deviceRepository.getGroupModel(selectedGroup.getId());
 
+                Log.d("Group", "Device Group: " + deviceGroupIds.toString() + " Group Model: " + groupModel);
 
                 String model = Build.MODEL;
                 String serialNo;
 
-                if(deviceGroupId != -1 && deviceGroupId != selectedGroup.getId()) {
-                    new SweetAlertDialog(this, SweetAlertDialog.ERROR_TYPE)
-                            .setTitleText("Device Group Mismatch")
-                            .setContentText("Device group does not match the pre-selected group for this model")
-                            .setConfirmText("OK")
-                            .setConfirmClickListener(SweetAlertDialog::dismissWithAnimation)
-                            .show();
+                if (groupModel != null && !deviceGroupIds.isEmpty() && !deviceGroupIds.contains(selectedGroup.getId())) {
+                    runOnUiThread(() -> {
+                        sweetAlertDialog.dismiss();
+                        sweetAlertDialog = new SweetAlertDialog(this, SweetAlertDialog.ERROR_TYPE)
+                                .setTitleText("Device Group Mismatch")
+                                .setContentText("Device group does not match the pre-selected group for this model")
+                                .setConfirmText("OK")
+                                .setConfirmClickListener(SweetAlertDialog::dismissWithAnimation);
+                        sweetAlertDialog.show();
+                    });
                     return;
                 }
 
@@ -152,13 +209,13 @@ public class GroupActivity extends AppCompatActivity {
 
                 try {
                     //call syncUsers from Configuration
-                    ((App)getApplication()).syncUsersOnLogout(GroupActivity.this, new App.SyncCallback() {
+                    ((App) getApplication()).syncUsersOnLogout(GroupActivity.this, new App.SyncCallback() {
                         @Override
                         public void onSuccess() {
                             try {
                                 String token = ((App) getApplication()).getToken(GroupActivity.this);
                                 EncryptionUtil.generateKey();
-                                byte[] encryptedData = EncryptionUtil.encrypt(data.getDisplayName() + "," + data.getEmail() + "," + data.getPassword() + "," + selectedGroup.getId() + "," + data.getRole()+ ","+ token);
+                                byte[] encryptedData = EncryptionUtil.encrypt(data.getDisplayName() + "," + data.getEmail() + "," + data.getPassword() + "," + selectedGroup.getId() + "," + data.getRole() + "," + token);
                                 SharedPreferences sharedPreferences = getSharedPreferences("user_prefs", Context.MODE_PRIVATE);
                                 SharedPreferences.Editor userEditor = sharedPreferences.edit();
                                 userEditor.putString("user_data", Base64.encodeToString(encryptedData, Base64.DEFAULT));
@@ -172,6 +229,7 @@ public class GroupActivity extends AppCompatActivity {
                             new Handler(Looper.getMainLooper()).postDelayed(new Runnable() {
                                 @Override
                                 public void run() {
+                                    sweetAlertDialog.dismiss();
 
                                     // Handle success
                                     Intent intent = new Intent(GroupActivity.this, SplashScreen.class);
@@ -184,6 +242,8 @@ public class GroupActivity extends AppCompatActivity {
 
                         @Override
                         public void onFailure(String errorMessage) {
+                            sweetAlertDialog.dismiss();
+
                             // Handle failure
                             Toast.makeText(GroupActivity.this, "Sync failed: " + errorMessage, Toast.LENGTH_SHORT).show();
                         }
@@ -192,11 +252,17 @@ public class GroupActivity extends AppCompatActivity {
                     throw new RuntimeException(e);
                 }
 
-
-
-
             } else {
-                Toast.makeText(this, "No Group Selected", Toast.LENGTH_SHORT).show();
+
+                runOnUiThread(() -> {
+                    sweetAlertDialog.dismiss();
+                    sweetAlertDialog = new SweetAlertDialog(this, SweetAlertDialog.ERROR_TYPE)
+                            .setTitleText("No Group Selected")
+                            .setContentText("Please select a group")
+                            .setConfirmText("OK")
+                            .setConfirmClickListener(SweetAlertDialog::dismissWithAnimation);
+                    sweetAlertDialog.show();
+                });
             }
         });
 

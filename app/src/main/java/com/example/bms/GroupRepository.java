@@ -39,6 +39,19 @@ public class GroupRepository {
         db.close();
     }
 
+    public void insertOrUpdateGroup(long id, String name, String createdAt, String updatedAt) {
+        SQLiteDatabase db = databaseHelper.getWritableDatabase();
+        ContentValues values = new ContentValues();
+        values.put("id", id);
+        values.put("name", name);
+        values.put("created_at", createdAt);
+        values.put("updated_at", updatedAt);
+        db.insertWithOnConflict(DatabaseHelper.TABLE_GROUPS, null, values, SQLiteDatabase.CONFLICT_REPLACE);
+        db.close();
+    }
+
+
+
  /*   public void updateGroup(Group group) {
         databaseHelper.updateGroup(group);
     }*/

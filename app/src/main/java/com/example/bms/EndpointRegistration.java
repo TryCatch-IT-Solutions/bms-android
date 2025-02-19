@@ -1,14 +1,22 @@
 package com.example.bms;
 
 import android.annotation.SuppressLint;
+import android.app.admin.DevicePolicyManager;
+import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
+import android.graphics.Bitmap;
+import android.net.ConnectivityManager;
+import android.net.NetworkInfo;
+import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Environment;
 import android.os.Handler;
 import android.os.Looper;
+import android.provider.Settings;
 import android.util.Base64;
 import android.util.Log;
 import android.view.View;
@@ -33,6 +41,10 @@ import com.google.android.gms.location.LocationResult;
 import com.google.android.gms.location.LocationServices;
 import com.google.android.gms.location.Priority;
 import com.google.android.material.textfield.TextInputEditText;
+import com.hfteco.finger.FingerSDK;
+import com.hfteco.finger.OnCaptureAllTypeBytesListener;
+import com.hfteco.finger.OnCaptureBytesListener;
+import com.hfteco.finger.OnSdkInitListener;
 
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -45,6 +57,10 @@ import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -67,6 +83,10 @@ public class EndpointRegistration extends AppCompatActivity {
         super.onDestroy();
         if (fusedLocationClient != null)
             fusedLocationClient.removeLocationUpdates(locationCallback);
+
+        if (fingerSDK != null) {
+            fingerSDK.release();
+        }
     }
 
     private void getApiEndpoint() {
@@ -448,6 +468,107 @@ public class EndpointRegistration extends AppCompatActivity {
         return serialNo;
     }
 
+    FingerSDK fingerSDK;
+
+
+    public boolean isInternetAvailable(Context context) {
+        ConnectivityManager connectivityManager = (ConnectivityManager) context.getSystemService(Context.CONNECTIVITY_SERVICE);
+        if (connectivityManager != null) {
+            NetworkInfo activeNetworkInfo = connectivityManager.getActiveNetworkInfo();
+            return activeNetworkInfo != null && activeNetworkInfo.isConnected();
+        }
+        return false;
+    }
+
+    @Override
+    public void onResume() {
+        super.onResume();
+        if (fingerSDK != null) {
+            fingerSDK.launch();
+        }
+    }
+
+    @Override
+    public void onPause() {
+        super.onPause();
+        if (fingerSDK != null) {
+            fingerSDK.release();
+        }
+    }
+
+    private static final int REQUEST_MANAGE_EXTERNAL_STORAGE = 1;
+
+    private void requestManageExternalStoragePermission() {
+        Intent intent = new Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION);
+        intent.setData(Uri.parse("package:" + getPackageName()));
+        startActivityForResult(intent, REQUEST_MANAGE_EXTERNAL_STORAGE);
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode == REQUEST_MANAGE_EXTERNAL_STORAGE) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                if (Environment.isExternalStorageManager()) {
+                    Toast.makeText(this, "Permission granted", Toast.LENGTH_SHORT).show();
+                } else {
+                    Toast.makeText(this, "Permission denied", Toast.LENGTH_SHORT).show();
+                }
+            }
+        }
+    }
+
+    private void requestAllPermissions() {
+        String[] permissions = {
+                android.Manifest.permission.CAMERA,
+                android.Manifest.permission.WRITE_EXTERNAL_STORAGE,
+                android.Manifest.permission.READ_EXTERNAL_STORAGE,
+                android.Manifest.permission.MANAGE_EXTERNAL_STORAGE,
+                android.Manifest.permission.ACCESS_FINE_LOCATION,
+                android.Manifest.permission.ACCESS_COARSE_LOCATION,
+                android.Manifest.permission.READ_PHONE_STATE,
+                android.Manifest.permission.CALL_PHONE
+        };
+
+        List<String> permissionsToRequest = new ArrayList<>();
+        for (String permission : permissions) {
+            if (ActivityCompat.checkSelfPermission(this, permission) != PackageManager.PERMISSION_GRANTED) {
+                permissionsToRequest.add(permission);
+            }
+        }
+
+        if (!permissionsToRequest.isEmpty()) {
+            ActivityCompat.requestPermissions(this, permissionsToRequest.toArray(new String[0]), 1);
+        }
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            if (!Environment.isExternalStorageManager()) {
+                requestManageExternalStoragePermission();
+            }
+        }
+
+        DevicePolicyManager devicePolicyManager = (DevicePolicyManager) getSystemService(Context.DEVICE_POLICY_SERVICE);
+        ComponentName adminComponent = new ComponentName(this, MyAdminReceiver.class);
+
+        if (!devicePolicyManager.isAdminActive(adminComponent)) {
+            Intent intent = new Intent(DevicePolicyManager.ACTION_ADD_DEVICE_ADMIN);
+            intent.putExtra(DevicePolicyManager.EXTRA_DEVICE_ADMIN, adminComponent);
+            intent.putExtra(DevicePolicyManager.EXTRA_ADD_EXPLANATION, "Device admin permission is required to lock the screen.");
+            startActivityForResult(intent, 1);
+        }
+    }
+
+    OnSdkInitListener onSdkInitListener;
+
+    private void hostCapture() {
+        fingerSDK.captureBytes(FingerSDK.TEMPLEATES.ISO_19794_2_2011, new OnCaptureBytesListener() {
+            @Override
+            public void capture(int i, byte[] bytes, Bitmap bitmap, byte[] bytes1) {
+                Log.d("EndpointRegistration", "capture: " + i + " " + Arrays.toString(bytes1));
+                sweetAlertDialog.dismissWithAnimation();
+            }
+        });
+    }
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -458,12 +579,81 @@ public class EndpointRegistration extends AppCompatActivity {
         if (sharedPreferences.getBoolean("isRegistered", false)) {
             startActivity(new Intent(EndpointRegistration.this, SplashScreen.class));
             finish();
+            return;
+        }
+
+        requestAllPermissions();
+
+        //check for internet
+        if (!isInternetAvailable(this)) {
+            sweetAlertDialog = new SweetAlertDialog(EndpointRegistration.this, SweetAlertDialog.ERROR_TYPE)
+                    .setTitleText("No internet connection")
+                    .setContentText("Please connect to the internet and try again.")
+                    .setConfirmClickListener(sweetAlertDialog -> {
+                        sweetAlertDialog.dismissWithAnimation();
+                        finish();
+                    });
+            sweetAlertDialog.setCancelable(false);
+            sweetAlertDialog.show();
+            return;
         }
 
         ActivityEndpointRegistrationBinding binding = ActivityEndpointRegistrationBinding.inflate(getLayoutInflater());
         setContentView(binding.getRoot());
         binding.lottieAnimation.setAnimationFromUrl("https://lottie.host/a094d2a3-45f3-4d43-a183-3639cf6eac2a/iTsyy0SWpU.lottie");
         binding.lottieAnimation.playAnimation();
+
+
+        runOnUiThread(() -> {
+            sweetAlertDialog = new SweetAlertDialog(EndpointRegistration.this, SweetAlertDialog.PROGRESS_TYPE)
+                    .setTitleText("Initializing Scanner")
+                    .setContentText("Please wait...");
+            sweetAlertDialog.setCancelable(false);
+            sweetAlertDialog.show();
+        });
+
+        boolean isLicensed = FingerSDK.licenceDevice();
+        Log.d("EndpointRegistration", "isLicensed: " + isLicensed);
+
+        fingerSDK = new FingerSDK(EndpointRegistration.this, new OnSdkInitListener() {
+            @Override
+            public void initResult(int i, String s) {
+
+                runOnUiThread(new Runnable() {
+                    @Override
+                    public void run() {
+                        Log.d("EndpointRegistration", "initResult: " + i + " " + s);
+                        if (fingerSDK == null) {
+                            Log.d("EndpointRegistration", "run: fingerSDK is null");
+                            return;
+                        }
+
+                        if (i != FingerSDK.RESULT_OK && i != 1) {
+                            Log.d("EndpointRegistration", "run: fingerSDK is not launch");
+                           /* if(onSdkInitListener != null) {
+                                fingerSDK.release();
+                                fingerSDK = new FingerSDK(EndpointRegistration.this, onSdkInitListener);
+                            }*/
+                            fingerSDK.launch();
+                        } else {
+                            Log.d("EndpointRegistration", "run: fingerSDK is not null");
+
+                            hostCapture();
+                        }
+                    }
+                });
+            }
+
+            @Override
+            public void onOpticalSensorInterrupt() {
+
+            }
+
+            @Override
+            public void onOpticalSensorLost() {
+
+            }
+        });
 
         findViewById(R.id.save_button).setOnClickListener(v -> {
             if (access == null) {
@@ -557,12 +747,12 @@ public class EndpointRegistration extends AppCompatActivity {
                                 saveApiEndpoint();
                             });
                         } else {
-                          runOnUiThread(() -> {
-                              new SweetAlertDialog(EndpointRegistration.this, SweetAlertDialog.ERROR_TYPE)
-                                      .setTitleText("Invalid API Endpoint")
-                                      .setContentText("Please enter a valid API endpoint and try again.")
-                                      .show();
-                          });
+                            runOnUiThread(() -> {
+                                new SweetAlertDialog(EndpointRegistration.this, SweetAlertDialog.ERROR_TYPE)
+                                        .setTitleText("Invalid API Endpoint")
+                                        .setContentText("Please enter a valid API endpoint and try again.")
+                                        .show();
+                            });
                         }
                     } else {
                         runOnUiThread(() -> {
@@ -575,10 +765,14 @@ public class EndpointRegistration extends AppCompatActivity {
                 } catch (Exception e) {
                     e.printStackTrace();
                     runOnUiThread(() -> {
-                        new SweetAlertDialog(EndpointRegistration.this, SweetAlertDialog.ERROR_TYPE)
-                                .setTitleText("Invalid API Endpoint")
-                                .setContentText("Please enter a valid API endpoint and try again.")
-                                .show();
+                        try {
+                            new SweetAlertDialog(EndpointRegistration.this, SweetAlertDialog.ERROR_TYPE)
+                                    .setTitleText("Invalid API Endpoint")
+                                    .setContentText("Please enter a valid API endpoint and try again.")
+                                    .show();
+                        } catch (Exception ex) {
+                            ex.printStackTrace();
+                        }
                     });
 
                 }
