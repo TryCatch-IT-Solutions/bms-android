@@ -49,6 +49,7 @@ import android.provider.Settings;
 import android.text.Editable;
 import android.text.InputFilter;
 import android.text.TextWatcher;
+import android.util.Base64;
 import android.util.Log;
 import android.view.View;
 import android.view.ViewGroup;
@@ -69,9 +70,13 @@ import java.util.Objects;
 
 import cn.pedant.SweetAlert.SweetAlertDialog;
 
-public class EnrollmentEdit extends AppCompatActivity {
+import com.example.bms.OnRfidDataReceivedListener;
+import com.example.bms.RFIDListener;
+
+public class EnrollmentEdit extends AppCompatActivity implements OnRfidDataReceivedListener {
 
     private ActivityEnrollmentEditBinding binding;
+    private RFIDListener rfidListener;
     private NfcAdapter mNfcAdapter;
     private PendingIntent mPendingIntent;
     private MaterialCardView cardRfidRegistered;
@@ -271,6 +276,14 @@ public class EnrollmentEdit extends AppCompatActivity {
 
         emailInput.setEnabled(false);
 
+        // Initialize RFIDListener with this as the listener
+        rfidListener = new RFIDListener("/dev/ttyS3", this);
+        try {
+            rfidListener.open();
+        } catch (Exception e) {
+            Log.e("EnrollmentEdit", "Failed to open RFIDListener: " + e.getMessage());
+        }
+
         phoneInput.addTextChangedListener(new TextWatcher() {
             @Override
             public void beforeTextChanged(CharSequence s, int start, int count, int after) {
@@ -290,6 +303,10 @@ public class EnrollmentEdit extends AppCompatActivity {
                 // No action needed
             }
         });
+
+// ... rest of the code ...
+
+
 
         emergencyContactInput.addTextChangedListener(new TextWatcher() {
             @Override
@@ -682,10 +699,10 @@ public class EnrollmentEdit extends AppCompatActivity {
         mNfcAdapter = NfcAdapter.getDefaultAdapter(this);
         if (mNfcAdapter == null) {
             // Device does not support NFC
-            new SweetAlertDialog(EnrollmentEdit.this, SweetAlertDialog.ERROR_TYPE)
-                    .setTitleText("NFC Not Supported")
-                    .setContentText("This device does not support NFC")
-                    .show();
+//            new SweetAlertDialog(EnrollmentEdit.this, SweetAlertDialog.ERROR_TYPE)
+//                    .setTitleText("NFC Not Supported")
+//                    .setContentText("This device does not support NFC")
+//                    .show();
             return;
         }
         if (!mNfcAdapter.isEnabled()) {
@@ -715,28 +732,51 @@ public class EnrollmentEdit extends AppCompatActivity {
         Tag tag = intent.getParcelableExtra(NfcAdapter.EXTRA_TAG);
         String id = Conversion.Bytes2HexString(tag.getId());
         Log.d("SCAN NFC", "ID: " + id);
+    }
 
-        if (cardRfidRegistered != null) {
+    @Override
+    public void onRfidDataReceived(String rfidData) {
+        runOnUiThread(() -> {
+            rfidId = rfidData;
+            if (cardRfidRegistered != null) {
 
-            //check for rfid
-            if (dbHelper.getRfidByKey(id, employee.getUserId()) != null) {
-                Toast.makeText(this, "RFID already exists", Toast.LENGTH_SHORT).show();
-                rfidId = null;
-                cardRfidRegistered.setVisibility(View.GONE);
-                scanRfidView.setVisibility(View.VISIBLE);
-                scanRfidView.requestFocus();
+                String id  = Conversion.Bytes2HexString(Base64.decode(rfidId,Base64.DEFAULT));
+                Log.d("SCAN NFC", "ID: " + id);
+                //check for rfid
+                if (dbHelper.getRfidByKey(rfidId, employee.getUserId()) != null) {
+                    Toast.makeText(this, "RFID already exists", Toast.LENGTH_SHORT).show();
+                    rfidId = null;
+                    cardRfidRegistered.setVisibility(View.GONE);
+                    scanRfidView.setVisibility(View.VISIBLE);
+                    scanRfidView.requestFocus();
 
-                // Scroll to the scanRfidView with an offset
-                nestedScrollView.post(() -> {
-                    int y = scanRfidView.getTop() - 50; // Adjust the offset as needed
-                    nestedScrollView.scrollTo(0, y);
-                });
-                return;
+                    // Scroll to the scanRfidView with an offset
+                    nestedScrollView.post(() -> {
+                        int y = scanRfidView.getTop() - 50; // Adjust the offset as needed
+                        nestedScrollView.scrollTo(0, y);
+                    });
+                    return;
+                }
+
+                rfidId = id;
+                cardRfidRegistered.setVisibility(View.VISIBLE);
+                scanRfidView.setVisibility(View.GONE);
             }
 
-            rfidId = id;
-            cardRfidRegistered.setVisibility(View.VISIBLE);
-            scanRfidView.setVisibility(View.GONE);
+            Log.d("EnrollmentEdit", "RFID Data Received: " + rfidData);
+        });
+    }
+
+    @Override
+    protected void onDestroy() {
+        // Close RFID scanner if used
+        if (rfidListener != null) {
+            try {
+                rfidListener.close();
+            } catch (Exception e) {
+                Log.e("EnrollmentEdit", "Error closing RFIDListener: " + e.getMessage());
+            }
         }
+        super.onDestroy();
     }
 }

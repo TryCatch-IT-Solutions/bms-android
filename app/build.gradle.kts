@@ -41,6 +41,7 @@ android {
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_1_8
         targetCompatibility = JavaVersion.VERSION_1_8
+//        isCoreLibraryDesugaringEnabled = true
     }
     kotlinOptions {
         jvmTarget = "1.8"
@@ -113,7 +114,12 @@ dependencies {
     implementation("androidx.appcompat:appcompat:1.6.1")
     implementation("com.airbnb.android:lottie:6.6.2")
 
-    api(files("libs/fingerprintv3.aar"))
-    api(files("libs/facepass.aar"))
+//    implementation("com.google.android.gms:play-services-base:18.7.0")
+//    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.3")
 
+    implementation(files("libs/fgtitdevice.jar"))
+    implementation(files("libs/android-support-v4.jar"))
+
+    api(files("libs/fingerprint.aar"))
+    api(files("libs/facepass.aar"))
 }

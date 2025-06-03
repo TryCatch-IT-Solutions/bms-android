@@ -25,6 +25,7 @@ import androidx.core.app.ActivityCompat;
 import com.example.bms.databinding.ActivityEndpointRegistrationBinding;
 import com.google.android.gms.common.ConnectionResult;
 import com.google.android.gms.common.GoogleApiAvailability;
+import android.app.Dialog;
 import com.google.android.gms.location.FusedLocationProviderClient;
 import com.google.android.gms.location.LocationAvailability;
 import com.google.android.gms.location.LocationCallback;
@@ -54,6 +55,8 @@ import cn.pedant.SweetAlert.SweetAlertDialog;
 public class EndpointRegistration extends AppCompatActivity {
 
 
+    private boolean shouldShowGpsDialog = false;
+    private Dialog googlePlayErrorDialog = null;
     private LocationRequest locationRequest;
     private LocationCallback locationCallback;
     private ActivityResultLauncher<String> requestPermissionLauncher;
@@ -67,6 +70,14 @@ public class EndpointRegistration extends AppCompatActivity {
         super.onDestroy();
         if (fusedLocationClient != null)
             fusedLocationClient.removeLocationUpdates(locationCallback);
+        // Dismiss SweetAlertDialog if showing
+        if (sweetAlertDialog != null && sweetAlertDialog.isShowing()) {
+            sweetAlertDialog.dismiss();
+        }
+        // Dismiss Google Play Services error dialog if showing
+        if (googlePlayErrorDialog != null && googlePlayErrorDialog.isShowing()) {
+            googlePlayErrorDialog.dismiss();
+        }
     }
 
     private void getApiEndpoint() {
@@ -406,7 +417,11 @@ public class EndpointRegistration extends AppCompatActivity {
         int status = googleApiAvailability.isGooglePlayServicesAvailable(this);
         if (status != ConnectionResult.SUCCESS) {
             if (googleApiAvailability.isUserResolvableError(status)) {
-                googleApiAvailability.getErrorDialog(this, status, 2404).show();
+                // Store reference to the dialog so it can be dismissed in onDestroy
+                googlePlayErrorDialog = googleApiAvailability.getErrorDialog(this, status, 2404);
+                if (googlePlayErrorDialog != null) {
+                    googlePlayErrorDialog.show();
+                }
             }
             return false;
         }
@@ -421,7 +436,7 @@ public class EndpointRegistration extends AppCompatActivity {
 
         SharedPreferences.Editor editor = sharedPreferences.edit();
         editor.putString("APP_TOKEN", null);
-        editor.putString("FINGERPRINT_SCORE_THRESHOLD", "85");
+        editor.putString("FINGERPRINT_SCORE_THRESHOLD", "50");
         editor.putString("PRIMARY_LOGO", null);
         editor.putString("PRIMARY_LOGO_URL", null);
         editor.putString("SECONDARY_LOGO", null);
@@ -610,22 +625,32 @@ public class EndpointRegistration extends AppCompatActivity {
 
         sharedPreferencesGroup = getSharedPreferences(GroupActivity.PREFS_NAME, Context.MODE_PRIVATE);
 
-        if (isGooglePlayServicesAvailable()) {
+        shouldShowGpsDialog = false;
+//        if (isGooglePlayServicesAvailable()) {
             fusedLocationClient = LocationServices.getFusedLocationProviderClient(this);
-//             Create a location request
+            // Create a location request
             locationRequest = new LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, 10000)
                     .setMinUpdateIntervalMillis(5000)
                     .build();
-        } else {
-            Toast.makeText(this, "Google Play Services not available", Toast.LENGTH_LONG).show();
-            new SweetAlertDialog(EndpointRegistration.this, SweetAlertDialog.ERROR_TYPE)
-                    .setTitleText("Google Play Services not available")
-                    .setContentText("Please install or update Google Play Services, and try again.")
-                    .show();
+            initLocation();
             return;
-        }
+//        }
+//        shouldShowGpsDialog = false;
+    }
 
-        initLocation();
+    @Override
+    protected void onResume() {
+        super.onResume();
+        // Show GPS dialog if needed and activity is not finishing
+        if (shouldShowGpsDialog && !isFinishing() && !isDestroyed()) {
+            Toast.makeText(this, "Google Play Services not available", Toast.LENGTH_LONG).show();
+            SweetAlertDialog gpsDialog = new SweetAlertDialog(EndpointRegistration.this, SweetAlertDialog.ERROR_TYPE)
+                    .setTitleText("Google Play Services not available")
+                    .setContentText("Please install or update Google Play Services, and try again.");
+//            gpsDialog.setOnDismissListener(dialog -> finish());
+            gpsDialog.show();
+            shouldShowGpsDialog = false;
+        }
     }
 
 

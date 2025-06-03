@@ -138,47 +138,66 @@ public class CameraManager implements CameraPreview.CameraPreviewListener {
                     try {
                         camera = Camera.open(cameraId);
                     } catch (Exception e) {
+                        Log.e("CameraManager", "Failed to open cameraId " + cameraId + ": " + e.getMessage());
                         Camera.CameraInfo cameraInfo = new Camera.CameraInfo();
                         int count = Camera.getNumberOfCameras();
                         if (count > 0) {
-                            cameraId = 0;
-                            camera = Camera.open(cameraId);
+                            try {
+                                cameraId = 0;
+                                camera = Camera.open(cameraId);
+                            } catch (Exception ex) {
+                                Log.e("CameraManager", "Failed to open fallback cameraId 0: " + ex.getMessage());
+                                cameraId = -1;
+                                camera = null;
+                            }
                         } else {
                             cameraId = -1;
                             camera = null;
                         }
                     }
                     if (camera != null) {
-                        Camera.CameraInfo info = new Camera.CameraInfo();
-                        Camera.getCameraInfo(cameraId, info);
-                        camera.setDisplayOrientation(cameraRotate);
-                        Camera.Parameters param = camera.getParameters();
-                        if (manualHeight > 0 && manualWidth > 0 && isSupportedPreviewSize(manualWidth, manualHeight, camera)) {
-                            param.setPreviewSize(manualWidth, manualHeight);
-                        } else {
-                            Camera.Size bestPreviewSize = getBestPreviewSize(camera);
-                            Log.i("metrics", "best height is" + bestPreviewSize.height + "width is " + bestPreviewSize.width);
-                            manualWidth = bestPreviewSize.width;
-                            manualHeight = bestPreviewSize.height;
-                            param.setPreviewSize(bestPreviewSize.width, bestPreviewSize.height);
-                            SettingVar.iscameraNeedConfig = true;
-                            Log.i("cameraManager", "camerawidth : " + bestPreviewSize.width + "  height  : " + bestPreviewSize.height);
+                        try {
+                            Camera.CameraInfo info = new Camera.CameraInfo();
+                            Camera.getCameraInfo(cameraId, info);
+                            camera.setDisplayOrientation(cameraRotate);
+                            Camera.Parameters param = camera.getParameters();
+                            if (manualHeight > 0 && manualWidth > 0 && isSupportedPreviewSize(manualWidth, manualHeight, camera)) {
+                                param.setPreviewSize(manualWidth, manualHeight);
+                            } else {
+                                Camera.Size bestPreviewSize = getBestPreviewSize(camera);
+                                Log.i("metrics", "best height is" + bestPreviewSize.height + "width is " + bestPreviewSize.width);
+                                manualWidth = bestPreviewSize.width;
+                                manualHeight = bestPreviewSize.height;
+                                param.setPreviewSize(bestPreviewSize.width, bestPreviewSize.height);
+                                SettingVar.iscameraNeedConfig = true;
+                                Log.i("cameraManager", "camerawidth : " + bestPreviewSize.width + "  height  : " + bestPreviewSize.height);
+                            }
+                            SettingVar.cameraSettingOk = true;
+                            param.setPreviewFormat(ImageFormat.NV21);
+                            camera.setParameters(param);
+                            PixelFormat pixelinfo = new PixelFormat();
+                            int pixelformat = camera.getParameters().getPreviewFormat();
+                            PixelFormat.getPixelFormatInfo(pixelformat, pixelinfo);
+                            Camera.Parameters parameters = camera.getParameters();
+                            Camera.Size sz = parameters.getPreviewSize();
+                            Log.i("cameraManager", "camerawidth : " + sz.width + "  height  : " + sz.height);
+                            int bufSize = sz.width * sz.height * pixelinfo.bitsPerPixel / 8;
+                            if (mPicBuffer == null || mPicBuffer.length != bufSize) {
+                                mPicBuffer = new byte[bufSize];
+                            }
+                            camera.addCallbackBuffer(mPicBuffer);
+                            previewSize = sz;
+                        } catch (Exception e) {
+                            Log.e("CameraManager", "Error configuring camera after open: " + e.getMessage());
+                            if (camera != null) {
+                                try {
+                                    camera.release();
+                                } catch (Exception ex) {
+                                    Log.e("CameraManager", "Error releasing camera after config failure: " + ex.getMessage());
+                                }
+                                camera = null;
+                            }
                         }
-                        SettingVar.cameraSettingOk = true;
-                        param.setPreviewFormat(ImageFormat.NV21);
-                        camera.setParameters(param);
-                        PixelFormat pixelinfo = new PixelFormat();
-                        int pixelformat = camera.getParameters().getPreviewFormat();
-                        PixelFormat.getPixelFormatInfo(pixelformat, pixelinfo);
-                        Camera.Parameters parameters = camera.getParameters();
-                        Camera.Size sz = parameters.getPreviewSize();
-                        Log.i("cameraManager", "camerawidth : " + sz.width + "  height  : " + sz.height);
-                        int bufSize = sz.width * sz.height * pixelinfo.bitsPerPixel / 8;
-                        if (mPicBuffer == null || mPicBuffer.length != bufSize) {
-                            mPicBuffer = new byte[bufSize];
-                        }
-                        camera.addCallbackBuffer(mPicBuffer);
-                        previewSize = sz;
                     }
                     return null;
                 }
@@ -186,10 +205,16 @@ public class CameraManager implements CameraPreview.CameraPreviewListener {
                 @Override
                 protected void onPostExecute(Object o) {
                     super.onPostExecute(o);
+                    if (camera == null) {
+                        Log.e("CameraManager", "Failed to open camera. Camera is null.");
+                        state = CameraState.IDEL;
+                        // Optionally, notify the user/UI here (e.g., via a callback or Toast)
+                        // Toast.makeText(cameraPreview.getContext(), "Failed to open camera. Please check permissions or if another app is using the camera.", Toast.LENGTH_LONG).show();
+                        return;
+                    }
                     if (cameraPreview != null) {
                         cameraPreview.setCamera(camera);
                     }
-
                     state = CameraState.OPENED;
                 }
             }.execute();

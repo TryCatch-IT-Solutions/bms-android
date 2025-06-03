@@ -14,14 +14,25 @@ public class AnnouncementRepository {
     }
 
 
-    public boolean hasAnnouncement(long userId, String title, String message, String expiration) {
+    public boolean hasAnnouncement(Long userId, String title, String message, String expiration) {
         SQLiteDatabase db = dbHelper.getReadableDatabase();
-        String query = "SELECT COUNT(*) FROM " + DatabaseHelper.TABLE_ANNOUNCEMENTS +
-                " WHERE " + DatabaseHelper.COLUMN_USER_ID + " = ? AND " +
-                DatabaseHelper.COLUMN_TITLE + " = ? AND " +
-                DatabaseHelper.COLUMN_MESSAGE + " = ? AND " +
-                DatabaseHelper.COLUMN_EXPIRATION + " = ?";
-        String[] selectionArgs = { String.valueOf(userId), title, message, expiration };
+        String query;
+        String[] selectionArgs;
+        if (userId == null) {
+            query = "SELECT COUNT(*) FROM " + DatabaseHelper.TABLE_ANNOUNCEMENTS +
+                    " WHERE " + DatabaseHelper.COLUMN_USER_ID + " IS NULL AND " +
+                    DatabaseHelper.COLUMN_TITLE + " = ? AND " +
+                    DatabaseHelper.COLUMN_MESSAGE + " = ? AND " +
+                    DatabaseHelper.COLUMN_EXPIRATION + " = ?";
+            selectionArgs = new String[] { title, message, expiration };
+        } else {
+            query = "SELECT COUNT(*) FROM " + DatabaseHelper.TABLE_ANNOUNCEMENTS +
+                    " WHERE " + DatabaseHelper.COLUMN_USER_ID + " = ? AND " +
+                    DatabaseHelper.COLUMN_TITLE + " = ? AND " +
+                    DatabaseHelper.COLUMN_MESSAGE + " = ? AND " +
+                    DatabaseHelper.COLUMN_EXPIRATION + " = ?";
+            selectionArgs = new String[] { String.valueOf(userId), title, message, expiration };
+        }
 
         Cursor cursor = db.rawQuery(query, selectionArgs);
         boolean exists = false;
@@ -33,10 +44,14 @@ public class AnnouncementRepository {
         return exists;
     }
 
-    public long insertAnnouncement(long userId, String title, String message, String expiration) {
+    public long insertAnnouncement(Long userId, String title, String message, String expiration) {
         SQLiteDatabase db = dbHelper.getWritableDatabase();
         ContentValues values = new ContentValues();
-        values.put(DatabaseHelper.COLUMN_USER_ID, userId);
+        if (userId == null) {
+            values.putNull(DatabaseHelper.COLUMN_USER_ID);
+        } else {
+            values.put(DatabaseHelper.COLUMN_USER_ID, userId);
+        }
         values.put(DatabaseHelper.COLUMN_TITLE, title);
         values.put(DatabaseHelper.COLUMN_MESSAGE, message);
         values.put(DatabaseHelper.COLUMN_EXPIRATION, expiration);

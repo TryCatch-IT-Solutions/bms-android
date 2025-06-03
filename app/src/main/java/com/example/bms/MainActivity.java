@@ -295,7 +295,7 @@ public class MainActivity extends AppCompatActivity {
             } catch (SecurityException e) {
                 serialNo = Build.SERIAL;
 //                        serialNo = "Permission not granted";
-                runOnUiThread(() -> Toast.makeText(this, "Permission not available to get serial, selecting default.", Toast.LENGTH_SHORT).show());
+//                runOnUiThread(() -> Toast.makeText(this, "Permission not available to get serial, selecting default.", Toast.LENGTH_SHORT).show());
             }
         } else {
             serialNo = Build.SERIAL;

@@ -60,6 +60,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
+import java.io.RandomAccessFile;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.net.URLConnection;
@@ -94,6 +95,11 @@ public class App extends Application {
     private LocationCallback locationCallback;
 
     double latitude = 0, longitude = 0;
+    private String sDirectory = "";
+
+    public int mRefCount = 0;
+    public byte[][] mRefList = new byte[2048][512];
+
 
 //    private BatteryLevelReceiver batteryLevelReceiver;
 
@@ -110,7 +116,7 @@ public class App extends Application {
         return true;
     }
 
-    private void initLocation(){
+    private void initLocation() {
 
         if (isGooglePlayServicesAvailable()) {
             fusedLocationClient = LocationServices.getFusedLocationProviderClient(this);
@@ -120,7 +126,7 @@ public class App extends Application {
 //                    .setMinUpdateDistanceMeters(1)
                     .build();
             System.out.println("Location request created");
-        }else{
+        } else {
             ExecutorService executor = Executors.newSingleThreadExecutor();
             executor.execute(this::syncMyDevice);
         }
@@ -135,8 +141,8 @@ public class App extends Application {
 
                     SharedPreferences sharedPreferences = getSharedPreferences(GroupActivity.PREFS_NAME, Context.MODE_PRIVATE);
                     SharedPreferences.Editor editor = sharedPreferences.edit();
-                    editor.putString("latitude",String.valueOf(latitude));
-                    editor.putString("longitude",String.valueOf(longitude));
+                    editor.putString("latitude", String.valueOf(latitude));
+                    editor.putString("longitude", String.valueOf(longitude));
                     editor.apply();
 
                     ExecutorService executor = Executors.newSingleThreadExecutor();
@@ -165,7 +171,7 @@ public class App extends Application {
         }
 
         Log.d("AppLocation", "Requesting location updates");
-        if(fusedLocationClient != null) {
+        if (fusedLocationClient != null) {
             fusedLocationClient.requestLocationUpdates(locationRequest, locationCallback, null)
                     .addOnSuccessListener(aVoid -> Log.d("Location", "Successfully requested location updates"))
                     .addOnCompleteListener(task -> Log.d("Location", "Completed location updates"))
@@ -183,7 +189,7 @@ public class App extends Application {
         handler.removeCallbacks(runnable);
     }
 
-    private void getApiEndpoint()  {
+    private void getApiEndpoint() {
         SharedPreferences sharedPreferences = getSharedPreferences(Configuration.PREFS_NAME, Context.MODE_PRIVATE);
         String apiEndpoint = sharedPreferences.getString("API_ENDPOINT", "http://115.147.32.2:9001/api");
 
@@ -210,11 +216,62 @@ public class App extends Application {
     }
 
 
+    private void handleFr05() {
+        CreateDirectory();
+        ReadDataFromFile();
+    }
+
+    private void CreateDirectory() {
+        String status = Environment.getExternalStorageState();
+        if (status.equals("mounted")) {
+            this.sDirectory = Environment.getExternalStorageDirectory() + "/FingerprintReader";
+            File destDir = new File(this.sDirectory);
+            if (!destDir.exists()) {
+                destDir.mkdirs();
+            }
+        }
+
+    }
+
+    private void ReadDataFromFile() {
+        File f = new File(this.sDirectory + "/fingerprint.dat");
+        f.exists();
+
+        try {
+            RandomAccessFile randomFile = new RandomAccessFile(this.sDirectory + "/fingerprint.dat", "rw");
+            long fileLength = randomFile.length();
+            this.mRefCount = (int) (fileLength / 512L);
+            if (this.mRefCount > 2000) {
+                this.mRefCount = 2000;
+            }
+
+            for (int i = 0; i < this.mRefCount; ++i) {
+                randomFile.read(this.mRefList[i]);
+            }
+
+            randomFile.close();
+        } catch (IOException var6) {
+            IOException e = var6;
+            e.printStackTrace();
+        }
+
+    }
+
+
     @Override
     public void onCreate() {
         super.onCreate();
 
         getApiEndpoint();
+
+        //check model
+        String model = getDeviceModel();
+        Log.d("Device", "Model: " + model);
+
+        //if fr05
+        if (model.equals("rk3568_r")) {
+            handleFr05();
+        }
 
 //        batteryLevelReceiver = new BatteryLevelReceiver();
 //        IntentFilter filter = new IntentFilter(Intent.ACTION_BATTERY_CHANGED);
@@ -249,7 +306,7 @@ public class App extends Application {
         };
         handler.post(cleanupTask);
 
-        if(access.equals("online")) {
+        if (access.equals("online")) {
             // Initialize the handler and runnable
             runnable = new Runnable() {
                 @Override
@@ -257,10 +314,10 @@ public class App extends Application {
                     // Call the getTimeEntries method
 
                     ExecutorService executor = Executors.newSingleThreadExecutor();
-                    executor.execute(()-> getSimilarDevices());
-                    executor.execute(()-> syncUsersFromWeb());
-                    executor.execute(()-> getTimeEntries());
-                    executor.execute(()-> getAnnouncements());
+                    executor.execute(() -> getSimilarDevices());
+                    executor.execute(() -> syncUsersFromWeb());
+                    executor.execute(() -> getTimeEntries());
+                    executor.execute(() -> getAnnouncements());
                     executor.execute(() -> syncMyDevice());
 
                     getDeviceSettings();
@@ -335,7 +392,7 @@ public class App extends Application {
         }
     }
 
-    private void uploadData(){
+    private void uploadData() {
         Log.d("App", "Uploading data");
         new Thread(new Runnable() {
             @Override
@@ -343,21 +400,21 @@ public class App extends Application {
                 String serialNo = getSerial();
                 ExecutorService executor = Executors.newSingleThreadExecutor();
 
-                executor.execute(()-> updateDeviceSyncStatus(serialNo,"pull_status","pending"));
-                executor.execute(()-> syncUsersOnLogout(App.this,null));
-                executor.execute(()-> syncTimeEntriesPaginated(App.this,null));
+                executor.execute(() -> updateDeviceSyncStatus(serialNo, "pull_status", "pending"));
+                executor.execute(() -> syncUsersOnLogout(App.this, null));
+                executor.execute(() -> syncTimeEntriesPaginated(App.this, null));
 
                 new Handler(Looper.getMainLooper()).postDelayed(new Runnable() {
                     @Override
                     public void run() {
-                        executor.execute(()-> updateDeviceSyncStatus(serialNo,"pull_status","off"));
+                        executor.execute(() -> updateDeviceSyncStatus(serialNo, "pull_status", "off"));
                     }
                 }, 5000);
             }
         }).start();
     }
 
-    private void downloadData(){
+    private void downloadData() {
 
         Log.d("App", "Downloading data");
         new Thread(new Runnable() {
@@ -366,15 +423,15 @@ public class App extends Application {
                 String serialNo = getSerial();
                 ExecutorService executor = Executors.newSingleThreadExecutor();
 
-                executor.execute(()-> updateDeviceSyncStatus(serialNo,"push_status","pending"));
-                executor.execute(()-> syncUsersFromWeb());
-                executor.execute(()-> getTimeEntries());
-                executor.execute(()-> getAnnouncements());
+                executor.execute(() -> updateDeviceSyncStatus(serialNo, "push_status", "pending"));
+                executor.execute(() -> syncUsersFromWeb());
+                executor.execute(() -> getTimeEntries());
+                executor.execute(() -> getAnnouncements());
 
                 new Handler(Looper.getMainLooper()).postDelayed(new Runnable() {
                     @Override
                     public void run() {
-                        executor.execute(()-> updateDeviceSyncStatus(serialNo,"push_status","off"));
+                        executor.execute(() -> updateDeviceSyncStatus(serialNo, "push_status", "off"));
                     }
                 }, 5000);
             }
@@ -382,7 +439,7 @@ public class App extends Application {
 
     }
 
-    private String getDeviceModel(){
+    private String getDeviceModel() {
         return android.os.Build.MODEL;
     }
 
@@ -423,7 +480,6 @@ public class App extends Application {
             return null;
         }
     }
-
 
 
     private void getDeviceSettings() {
@@ -482,7 +538,7 @@ public class App extends Application {
                         secondaryLogoPath = sharedPreferences.getString("SECONDARY_LOGO", null);
                     }
 
-                    if(secondaryLogo.equals("null")){
+                    if (secondaryLogo.equals("null")) {
                         secondaryLogoPath = null;
                     }
 
@@ -612,7 +668,7 @@ public class App extends Application {
 
     public void syncMyDevice() {
 
-        if(getAccess().equals("offline")) {
+        if (getAccess().equals("offline")) {
             return;
         }
 
@@ -676,8 +732,8 @@ public class App extends Application {
                 deviceDetails.put("last_sync", dbHelper.getCurrentDateTime());
                 deviceDetails.put("last_activity", dbHelper.getCurrentDateTime());
 
-                if(device != null) {
-                    if(!device.isSynced()) {
+                if (device != null) {
+                    if (!device.isSynced()) {
                         deviceDetails.put("manual_time_entry", device.isManualTimeEntry());
                         deviceDetails.put("check_in", device.isCheckIn());
                         deviceDetails.put("check_out", device.isCheckOut());
@@ -687,14 +743,14 @@ public class App extends Application {
                         deviceDetails.put("overtime_out", device.isOvertimeOut());
 
                         //sync settings
-                        if(getPrimaryLogo() != null) {
+                        if (getPrimaryLogo() != null) {
                             File primaryLogoFile = new File(getPrimaryLogo());
                             if (primaryLogoFile.exists()) {
                                 uploadImage("PRIMARY_LOGO", primaryLogoFile);
                             }
                         }
 
-                        if(getSecondaryLogo() != null) {
+                        if (getSecondaryLogo() != null) {
                             File secondaryLogoFile = new File(getSecondaryLogo());
                             if (secondaryLogoFile.exists()) {
                                 uploadImage("SECONDARY_LOGO", secondaryLogoFile);
@@ -702,7 +758,7 @@ public class App extends Application {
                         }
 
                     }
-                }else{
+                } else {
                     deviceDetails.put("manual_time_entry", false);
                     deviceDetails.put("check_in", false);
                     deviceDetails.put("check_out", false);
@@ -767,9 +823,6 @@ public class App extends Application {
                 }
 
 
-
-
-
             } catch (Exception e) {
                 e.printStackTrace();
                 Log.e("DeviceRegistration", "Error registering device: " + e.getMessage() + getToken(this));
@@ -778,7 +831,7 @@ public class App extends Application {
 
     }
 
-    private String getSerial(){
+    private String getSerial() {
         String serialNo;
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             try {
@@ -796,10 +849,10 @@ public class App extends Application {
     private double[] getLatAndLong() {
         SharedPreferences sharedPreferences = getSharedPreferences(GroupActivity.PREFS_NAME, Context.MODE_PRIVATE);
         double latitude = 0, longitude = 0;
-        try{
+        try {
             latitude = Double.parseDouble(sharedPreferences.getString("latitude", "0"));
             longitude = Double.parseDouble(sharedPreferences.getString("longitude", "0"));
-        }catch (Exception e){
+        } catch (Exception e) {
             e.printStackTrace();
         }
 
@@ -807,7 +860,7 @@ public class App extends Application {
         return new double[]{latitude, longitude};
     }
 
-    public void getSimilarDevices(){
+    public void getSimilarDevices() {
 
         String mySerial = getSerial();
         try {
@@ -844,10 +897,10 @@ public class App extends Application {
 
                 DeviceModel storedDevice = deviceRepository.getDevice(device.getString("serial_no"));
 
-                if(mySerial.equals(device.getString("serial_no"))){
+                if (mySerial.equals(device.getString("serial_no"))) {
                     String pushStatus = device.getString("push_status");
                     String pullStatus = device.getString("pull_status");
-                    if(pushStatus.equals("on")) {
+                    if (pushStatus.equals("on")) {
                         downloadData();
                     }
                     if (pullStatus.equals("on")) {
@@ -857,10 +910,9 @@ public class App extends Application {
                     Log.d("DeviceRegistration", "Your device: " + device.toString());
                 }
 
-                if(storedDevice != null && device.getString("serial_no").equals(storedDevice.getSerialNo()) && !storedDevice.isSynced() ) {
+                if (storedDevice != null && device.getString("serial_no").equals(storedDevice.getSerialNo()) && !storedDevice.isSynced()) {
                     continue;
                 }
-
                 deviceRepository.insertOrUpdateDevice(
                         device.getLong("group_id"),
                         device.getString("model"),
@@ -868,7 +920,7 @@ public class App extends Application {
                         device.getDouble("lat"),
                         device.getDouble("lon"),
                         device.getString("created_at"),
-                        intToBoolean(device.getInt("is_online")),
+                        getBooleanValue(device, "is_online"),
                         device.getString("last_sync"),
                         device.getString("last_activity"),
                         device.getString("logo_url"),
@@ -890,11 +942,11 @@ public class App extends Application {
         }
     }
 
-    private void syncUsersFromWeb(){
-        Log.d("SyncingUsers","Syncing users from web");
+    private void syncUsersFromWeb() {
+        Log.d("SyncingUsers", "Syncing users from web");
 
         String access = getAccess();
-        if(access.equals("offline")) {
+        if (access.equals("offline")) {
             return;
         }
 
@@ -903,7 +955,7 @@ public class App extends Application {
             public void onSuccess() {
 
                 try {
-                    Log.d("SyncingUsers",App.BASE_URL + "/sync/users/login");
+                    Log.d("SyncingUsers", App.BASE_URL + "/sync/users/login");
 
                     URL url = new URL(App.BASE_URL + "/sync/users/login");
                     HttpURLConnection conn = (HttpURLConnection) url.openConnection();
@@ -960,7 +1012,7 @@ public class App extends Application {
                                 user.getString("role"),
                                 user.getString("password"),
                                 user.getString("created_at")
-                                );
+                        );
 
                         JSONArray biometrics = user.getJSONArray("biometrics");
                         for (int j = 0; j < biometrics.length(); j++) {
@@ -1037,7 +1089,7 @@ public class App extends Application {
         }
     }
 
-    private String getDeviceGroupId(){
+    private String getDeviceGroupId() {
         SharedPreferences sharedPreferences = getSharedPreferences("DEVICE_GROUP", Context.MODE_PRIVATE);
         return sharedPreferences.getString(GroupActivity.KEY_SELECTED_GROUP, null);
     }
@@ -1063,6 +1115,7 @@ public class App extends Application {
 
     public interface SyncCallback {
         void onSuccess();
+
         void onFailure(String errorMessage);
     }
 
@@ -1072,7 +1125,7 @@ public class App extends Application {
         String access = getAccess();
         System.out.println("Access is: " + access);
 
-        if(access.equals("offline")) {
+        if (access.equals("offline")) {
             return;
         }
 
@@ -1087,7 +1140,7 @@ public class App extends Application {
             return;
         }
 
-        if(Objects.equals(userData.getGroupId() ,null)) {
+        if (Objects.equals(userData.getGroupId(), null)) {
             Log.e("App", "Group ID is null. Cannot fetch announcements.");
             return;
         }
@@ -1099,7 +1152,7 @@ public class App extends Application {
                 HttpURLConnection conn = (HttpURLConnection) url.openConnection();
                 conn.setRequestMethod("GET");
                 conn.setRequestProperty("Accept", "application/json");
-                conn.setRequestProperty("Authorization", "Bearer " +getToken(App.this));
+                conn.setRequestProperty("Authorization", "Bearer " + getToken(App.this));
 
                 System.out.println("Token is real: " + getToken(App.this));
 
@@ -1125,20 +1178,28 @@ public class App extends Application {
                 for (int i = 0; i < announcements.length(); i++) {
                     JSONObject announcement = announcements.getJSONObject(i);
 
-                    LoggedInUser user = userRepository.getUserByEmail(announcement.getString("email"));
-
-                    if(user == null) {
-                        System.out.println("User not found: " + announcement.getString("email"));
-                        continue;
+                    Long userId = null;
+                    // Handle nullable user_id
+                    if (!announcement.isNull("user_id") && !"null".equals(announcement.getString("user_id"))) {
+                        userId = userRepository.findUserIdByEmail(announcement.getString("email"));
                     }
 
-                    if(repository.hasAnnouncement(announcement.getLong("user_id"), announcement.getString("title"), announcement.getString("message"), announcement.getString("expiration"))) {
+                    if (repository.hasAnnouncement(
+                            userId,
+                            announcement.getString("title"),
+                            announcement.getString("message"),
+                            announcement.getString("expiration"))) {
                         System.out.println("Announcement already exists: " + announcement.toString());
                         continue;
                     }
 
-                    repository.insertAnnouncement(Long.parseLong(user.getUserId()), announcement.getString("title"), announcement.getString("message"), announcement.getString("expiration"));
-                    // Example: Log the announcement details
+                    // Insert with nullable user_id
+                    repository.insertAnnouncement(
+                            userId,
+                            announcement.getString("title"),
+                            announcement.getString("message"),
+                            announcement.getString("expiration")
+                    );
                     Log.d("Announcement", "Title: " + announcement.getString("title") + ", Message: " + announcement.getString("message"));
                 }
 
@@ -1149,7 +1210,7 @@ public class App extends Application {
         });
     }
 
-    private String getAccess()  {
+    private String getAccess() {
         SharedPreferences sharedPreferences = getSharedPreferences(Configuration.PREFS_NAME, Context.MODE_PRIVATE);
         return sharedPreferences.getString("ACCESS", "offline");
     }
@@ -1159,7 +1220,7 @@ public class App extends Application {
         String access = getAccess();
         System.out.println("Access is: " + access);
 
-        if(access.equals("offline")) {
+        if (access.equals("offline")) {
             return;
         }
 
@@ -1168,14 +1229,14 @@ public class App extends Application {
         LoginDataSource loginDataSource = new LoginDataSource(App.this);
         LoggedInUser userData = loginDataSource.getUserData(this);
 
-        if(userData == null) {
+        if (userData == null) {
             return;
         }
 
         executor.execute(() -> {
             try {
 
-                URL url = new URL(App.BASE_URL + "/sync/time-entries/"+userData.getGroupId());
+                URL url = new URL(App.BASE_URL + "/sync/time-entries/" + userData.getGroupId());
                 HttpURLConnection conn = (HttpURLConnection) url.openConnection();
                 conn.setRequestMethod("GET");
                 conn.setRequestProperty("Accept", "application/json");
@@ -1206,7 +1267,7 @@ public class App extends Application {
                     long userId = userRepository.findUserIdByEmail(entry.getJSONObject("employee").getString("email"));
 
                     if(repository.hasTimeEntry(userId, entry.getString("datetime"))) {
-                        System.out.println("Time entry already exists: " + entry.toString());
+//                        System.out.println("Time entry already exists: " + entry.toString());
                         continue;
                     }
 
@@ -1240,17 +1301,18 @@ public class App extends Application {
 
     class BooleanWrapper {
         public boolean value;
+
         public BooleanWrapper(boolean value) {
             this.value = value;
         }
     }
 
-    public void syncTimeEntriesPaginated(Context context,SyncCallback callback) {
+    public void syncTimeEntriesPaginated(Context context, SyncCallback callback) {
         syncTimeEntriesPaginated(context, callback, 10);
     }
 
     @SuppressLint("Range")
-    public void syncTimeEntriesPaginated(Context context,SyncCallback callback, int _limit) {
+    public void syncTimeEntriesPaginated(Context context, SyncCallback callback, int _limit) {
         String access = getAccess();
         System.out.println("Access is: " + access);
 
@@ -1449,7 +1511,7 @@ public class App extends Application {
     }
 
     @SuppressLint("Range")
-    public void syncTimeEntriesOnLogout(Context context, SyncCallback callback,int limit) {
+    public void syncTimeEntriesOnLogout(Context context, SyncCallback callback, int limit) {
         String access = getAccess();
         System.out.println("Access is: " + access);
 
@@ -1625,7 +1687,7 @@ public class App extends Application {
     }
 
     @SuppressLint("Range")
-    public void syncUsersOnLogout(Context context, SyncCallback callback)  {
+    public void syncUsersOnLogout(Context context, SyncCallback callback) {
         String access = getAccess();
         System.out.println("Access is: " + access);
 
@@ -1687,6 +1749,12 @@ public class App extends Application {
                 JSONArray biometricsArray = new JSONArray();
 
                 for (Biometric biometric : biometrics) {
+
+                    if (biometric.getKey() == null) {
+                        Log.d("SyncUsersTask", "Biometric key is null for user ID: " + userId);
+                        continue;
+                    }
+
                     JSONObject biometricObject = new JSONObject();
                     biometricObject.put("id", biometric.getId());
                     biometricObject.put("key", escapeJson(biometric.getKey()));
@@ -1827,7 +1895,7 @@ public class App extends Application {
 
         executor.execute(() -> {
             try {
-                URL url = new URL(BASE_URL+"/refresh-token?email="+currentUserEmail);
+                URL url = new URL(BASE_URL + "/refresh-token?email=" + currentUserEmail);
                 HttpURLConnection conn = (HttpURLConnection) url.openConnection();
                 conn.setRequestMethod("POST");
                 conn.setRequestProperty("Accept", "application/json");
@@ -1848,7 +1916,7 @@ public class App extends Application {
                     String newToken = jsonResponse.getString("token");
                     JSONObject userJson = jsonResponse.getJSONObject("user");
 
-                    String displayName =  userJson.getString("first_name") + " " + userJson.getString("last_name");
+                    String displayName = userJson.getString("first_name") + " " + userJson.getString("last_name");
 
                     // Save the new token to user_prefs
                     // Encrypt the user data
@@ -1857,7 +1925,7 @@ public class App extends Application {
 
                     long userGroupId = userJson.isNull("group_id") ? 0 : userJson.getLong("group_id");
 //                    System.out.println("The new Encrypt is" + displayName + "," + userJson.getString("email") + "," + "No_Password" + "," + userJson.getLong("group_id")  + "," + userJson.getString("role") + "," + newToken);
-                    byte[] encryptedData = EncryptionUtil.encrypt(displayName + "," + userJson.getString("email") + "," + "No_Password" + "," + userGroupId  + "," + userJson.getString("role") + "," + newToken);
+                    byte[] encryptedData = EncryptionUtil.encrypt(displayName + "," + userJson.getString("email") + "," + "No_Password" + "," + userGroupId + "," + userJson.getString("role") + "," + newToken);
 
                     SharedPreferences sharedPreferences = getSharedPreferences("user_prefs", Context.MODE_PRIVATE);
                     SharedPreferences.Editor editor = sharedPreferences.edit();
@@ -1978,7 +2046,7 @@ public class App extends Application {
                             Log.d("FileCleanupUtil", "Failed to delete file: " + file.getName());
                         }
                     } else {
-                        Log.d("FileCleanupUtil", "File is not older than " + minutes + " minutes: " + file.getName());
+//                        Log.d("FileCleanupUtil", "File is not older than " + minutes + " minutes: " + file.getName());
                     }
                 }
             }
@@ -1986,5 +2054,21 @@ public class App extends Application {
 
     }
 
+
+    private boolean getBooleanValue(JSONObject json, String key) {
+        try {
+            // First try to get it as a boolean
+            return json.getBoolean(key);
+        } catch (JSONException e) {
+            try {
+                // If that fails, try to get it as an int
+                return intToBoolean(json.getInt(key));
+            } catch (JSONException e2) {
+                // Default to false if neither works
+                e2.printStackTrace();
+                return false;
+            }
+        }
+    }
 
 }

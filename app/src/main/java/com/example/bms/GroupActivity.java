@@ -136,7 +136,7 @@ public class GroupActivity extends AppCompatActivity {
                     } catch (SecurityException e) {
                         serialNo = Build.SERIAL;
 //                        serialNo = "Permission not granted";
-                        Toast.makeText(this, "Permission not available to get serial, selecting default.", Toast.LENGTH_SHORT).show();
+//                        Toast.makeText(this, "Permission not available to get serial, selecting default.", Toast.LENGTH_SHORT).show();
                     }
                 } else {
                     serialNo = Build.SERIAL;
