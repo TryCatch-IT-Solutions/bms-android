@@ -390,6 +390,21 @@ public class App extends Application {
         return intValue == 1;
     }
 
+    private boolean getBooleanValue(JSONObject json, String key) {
+        try {
+            // First try to get it as a boolean
+            return json.getBoolean(key);
+        } catch (JSONException e) {
+            try {
+                // If that fails, try to get it as an int
+                return intToBoolean(json.getInt(key));
+            } catch (JSONException e2) {
+                // Default to false if neither works
+                e2.printStackTrace();
+                return false;
+            }
+        }
+    }
 
     private boolean isValidImageUrl(String urlString) {
         try {
@@ -868,7 +883,7 @@ public class App extends Application {
                         device.getDouble("lat"),
                         device.getDouble("lon"),
                         device.getString("created_at"),
-                        intToBoolean(device.getInt("is_online")),
+                        getBooleanValue(device,"is_online"),
                         device.getString("last_sync"),
                         device.getString("last_activity"),
                         device.getString("logo_url"),
