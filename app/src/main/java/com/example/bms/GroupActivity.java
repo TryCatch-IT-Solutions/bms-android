@@ -87,7 +87,6 @@ public class GroupActivity extends AppCompatActivity {
             groupList = groupRepository.getGroup(data.getGroupId());
         } else if (data.getRole().equals("superadmin")) {
             groupList = groupRepository.getAllGroups();
-            Log.d("Group","Groups: " + groupList);
         }
 
         Log.d("Group","GroupsHere: " + groupList);
@@ -113,22 +112,9 @@ public class GroupActivity extends AppCompatActivity {
             Group selectedGroup = adapter.getSelectedGroup();
             if (selectedGroup != null) {
 
-                DeviceRepository deviceRepository = new DeviceRepository(GroupActivity.this);
-                long deviceGroupId = deviceRepository.getModelGroupId(Build.MODEL);
-
 
                 String model = Build.MODEL;
                 String serialNo;
-
-                if(deviceGroupId != -1 && deviceGroupId != selectedGroup.getId()) {
-                    new SweetAlertDialog(this, SweetAlertDialog.ERROR_TYPE)
-                            .setTitleText("Device Group Mismatch")
-                            .setContentText("Device group does not match the pre-selected group for this model")
-                            .setConfirmText("OK")
-                            .setConfirmClickListener(SweetAlertDialog::dismissWithAnimation)
-                            .show();
-                    return;
-                }
 
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                     try {
@@ -142,6 +128,24 @@ public class GroupActivity extends AppCompatActivity {
                     serialNo = Build.SERIAL;
                 }
 
+                long deviceGroupId = deviceRepository.getModelGroupId(model, serialNo);
+
+                if(deviceGroupId == -1) {
+                    deviceGroupId = deviceRepository.getModelGroupId(model);
+                }
+
+                String deviceModel = deviceRepository.getDeviceGroupModel(selectedGroup.getId());
+
+                if(deviceGroupId != -1 && deviceModel != null && !deviceModel.equals(model)) {
+                    new SweetAlertDialog(this, SweetAlertDialog.ERROR_TYPE)
+                            .setTitleText("Device Model Mismatch")
+                            .setContentText("Device model does not match the pre-selected model for this device")
+                            .setConfirmText("OK")
+                            .setConfirmClickListener(SweetAlertDialog::dismissWithAnimation)
+                            .show();
+                    return;
+                }
+
                 UserRepository repository = new UserRepository(GroupActivity.this);
                 repository.updateUserGroupByEmail(data.getEmail(), selectedGroup.getId());
 
@@ -149,6 +153,8 @@ public class GroupActivity extends AppCompatActivity {
                 SharedPreferences.Editor editor = groupPrefs.edit();
                 editor.putString(KEY_SELECTED_GROUP, String.valueOf(selectedGroup.getId()));
                 editor.apply();
+
+                deviceRepository.updateDeviceGroupIdBySerial(serialNo, selectedGroup.getId());
 
                 try {
                     //call syncUsers from Configuration
@@ -191,9 +197,6 @@ public class GroupActivity extends AppCompatActivity {
                 } catch (Exception e) {
                     throw new RuntimeException(e);
                 }
-
-
-
 
             } else {
                 Toast.makeText(this, "No Group Selected", Toast.LENGTH_SHORT).show();

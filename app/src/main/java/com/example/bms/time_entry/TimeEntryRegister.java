@@ -295,7 +295,6 @@ public class TimeEntryRegister extends CameraSettingActivity implements CameraMa
                 fingerSDK.clear();
                 fingerSDK.release();
                 fingerSDK = null;
-                System.out.println("Finger SDK released");
             }
 
             Intent intent = new Intent(TimeEntryRegister.this, MainActivity.class);
@@ -518,7 +517,6 @@ public class TimeEntryRegister extends CameraSettingActivity implements CameraMa
 //                    fingerSDK.clear();
 //                    fingerSDK.release();
 //                    fingerSDK = null;
-//                    System.out.println("Finger SDK released");
 //                }
 
 //                Intent intent = new Intent(TimeEntryRegister.this, MainActivity.class);
@@ -912,8 +910,6 @@ public class TimeEntryRegister extends CameraSettingActivity implements CameraMa
             greeting.setText("Good Evening");
         }
 
-        System.out.println("The time is: " + hour);
-
         SimpleDateFormat sdf = new SimpleDateFormat("hh:mm a", Locale.getDefault());
         String currentTime = sdf.format(calendar.getTime());
         timeEntry.setText("Time Entry: " + currentTime);
@@ -1023,7 +1019,6 @@ public class TimeEntryRegister extends CameraSettingActivity implements CameraMa
 
         if (fingerSDK != null) {
             fingerSDK.release();
-            System.out.println("Finger SDK released");
         }
     }
 
@@ -1174,9 +1169,14 @@ public class TimeEntryRegister extends CameraSettingActivity implements CameraMa
                                 hostCapture();
                             }
                         }, 100);
+
+                        Thread.sleep(100);
                     } catch (UnsupportedEncodingException e) {
                         e.printStackTrace();
                         Log.d("TimeEntryRegister", "UnsupportedEncodingException: " + e.getMessage());
+                    } catch (InterruptedException e) {
+                       e.printStackTrace();
+                       Log.d("TIME_ENTRY_ERROR","Interrupted Exception");
                     }
                 } else {
                     Log.d("TimeEntryRegister", "capture failed: " + i);
@@ -1628,6 +1628,7 @@ public class TimeEntryRegister extends CameraSettingActivity implements CameraMa
                         lockScreen();
                     }
                 }
+
             }
 
         }

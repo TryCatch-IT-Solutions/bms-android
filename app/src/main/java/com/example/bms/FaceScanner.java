@@ -17,6 +17,7 @@ import androidx.activity.EdgeToEdge;
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.appcompat.widget.Toolbar;
 import androidx.core.graphics.Insets;
 import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
@@ -163,6 +164,8 @@ public class FaceScanner extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         EdgeToEdge.enable(this);
         setContentView(R.layout.activity_face_scanner);
+
+
         ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.main), (v, insets) -> {
             Insets systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars());
             v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom);
@@ -190,10 +193,10 @@ public class FaceScanner extends AppCompatActivity {
             }
         });
 
-
+        Toolbar toolbarHead = findViewById(R.id.toolbar_header);
+        toolbarHead.setNavigationOnClickListener(view -> finish());
 
         mProgressDialog = new ProgressDialog(this);
-
 
         take_photo = findViewById(R.id.take_photo);
         save_photo = findViewById(R.id.save_photo);
@@ -293,7 +296,6 @@ public class FaceScanner extends AppCompatActivity {
             if (index < currentIndex) {
                 currentIndex = index;
             }
-            Toast.makeText(this, "Finger " + (index + 1) + " reset", Toast.LENGTH_SHORT).show();
         }
         save_photo.setVisibility(View.GONE);
     }

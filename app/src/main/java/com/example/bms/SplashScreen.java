@@ -29,6 +29,7 @@ public class SplashScreen extends AppCompatActivity {
 
     SharedPreferences sharedPreferences;
     String savedGroupId;
+    String deviceModel;
 
     long modelGroupId = -1;
 
@@ -70,7 +71,6 @@ public class SplashScreen extends AppCompatActivity {
         LoginDataSource loginDataSource = new LoginDataSource(SplashScreen.this);
         LoggedInUser data = loginDataSource.getUserData(this);
 
-        Log.d("SplashScreen", "onCreate: Token-" + getToken());
         if (getToken() == null) {
             startActivity(new Intent(SplashScreen.this, LoginActivity.class));
             finish();
@@ -90,7 +90,6 @@ public class SplashScreen extends AppCompatActivity {
         String secondaryLogo = getSecondaryLogo();
         if (!secondaryLogo.equals("drawable/logo")) {
             File imgFile = new File(secondaryLogo);
-            Log.d("SecondaryLogo", "Path: " + imgFile.getAbsolutePath() + " Exists: " + imgFile.exists());
             if (imgFile.exists()) {
                 Bitmap myBitmap = BitmapFactory.decodeFile(imgFile.getAbsolutePath());
                 logo.setImageBitmap(myBitmap);
@@ -107,12 +106,13 @@ public class SplashScreen extends AppCompatActivity {
 
         savedGroupId = String.valueOf(data.getGroupId());
 
+        deviceModel = deviceRepository.getDeviceGroupModel(Long.parseLong(savedGroupId));
+
         SharedPreferences sharedPreferences = getSharedPreferences(GroupActivity.PREFS_NAME, Context.MODE_PRIVATE);
         sharedPreferences.edit().putString(GroupActivity.KEY_SELECTED_GROUP, savedGroupId).apply();
 
         initMain();
     }
-
 
 
     private void initMain(){
@@ -123,14 +123,14 @@ public class SplashScreen extends AppCompatActivity {
                 if (savedGroupId.equals("0")) {
                     startActivity(new Intent(SplashScreen.this, GroupActivity.class));
                     finish();
-                }else if(modelGroupId != -1 && modelGroupId != Long.parseLong(savedGroupId)){
+                }else if(modelGroupId != -1 && !deviceModel.equals(Build.MODEL)) {
                     startActivity(new Intent(SplashScreen.this, GroupActivity.class));
                     finish();
                 }else{
-//                    startActivity(new Intent(SplashScreen.this, TimeEntryRegister.class));
-                    startActivity(new Intent(SplashScreen.this, MainActivity.class));
+                    startActivity(new Intent(SplashScreen.this, TimeEntryRegister.class));
+//                    startActivity(new Intent(SplashScreen.this, MainActivity.class));
 //                    startActivity(new Intent(SplashScreen.this, EndpointRegistration.class));
-//                    finish();
+                    finish();
                 }
             }
         }, 1000);

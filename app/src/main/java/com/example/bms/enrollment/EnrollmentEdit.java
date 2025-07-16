@@ -214,7 +214,7 @@ public class EnrollmentEdit extends AppCompatActivity {
         binding = ActivityEnrollmentEditBinding.inflate(getLayoutInflater());
         setContentView(binding.getRoot());
 
-        Objects.requireNonNull(getWindow().getInsetsController()).hide(WindowInsetsCompat.Type.systemBars());
+        // Objects.requireNonNull(getWindow().getInsetsController()).hide(WindowInsetsCompat.Type.systemBars());
 
         dbHelper = new DatabaseHelper(this);
 

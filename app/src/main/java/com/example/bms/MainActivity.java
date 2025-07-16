@@ -122,7 +122,6 @@ public class MainActivity extends AppCompatActivity {
                     .setMinUpdateIntervalMillis(1)
                     .setMinUpdateDistanceMeters(1)
                     .build();
-            System.out.println("Location request created");
         }else{
             ExecutorService executor = Executors.newSingleThreadExecutor();
             executor.execute(() -> registerDevice(latitude,longitude));
@@ -274,7 +273,6 @@ public class MainActivity extends AppCompatActivity {
     private void registerDevice(double latitude, double longitude) {
         String model = Build.MODEL;
 
-        System.out.println("The lat and long are: " + latitude + " " + longitude + " " +  Math.round(latitude));
 
         if(latitude != 0 && Math.round(latitude) < 5) {
             return;
@@ -285,8 +283,6 @@ public class MainActivity extends AppCompatActivity {
         editor.putString("latitude",String.valueOf(latitude));
         editor.putString("longitude",String.valueOf(longitude));
         editor.apply();
-
-        System.out.println("The recorded lat and long are: " + String.valueOf(latitude) + " " + String.valueOf(longitude) + " " +  Math.round(latitude));
 
         String serialNo;
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -449,11 +445,14 @@ public class MainActivity extends AppCompatActivity {
             logo.setImageResource(R.drawable.logo);
         }
 
-
         // Get reference to the User Enrollment button
         Button btnUserEnrollment = findViewById(R.id.btn_user_enrollment);
         Button btnGroup = findViewById(R.id.btn_group);
 
+
+        if(getAccess().equals("offline")){
+            btnGroup.setVisibility(View.GONE);
+        }
 
         if(getRole().equals("groupadmin")){
             btnGroup.setVisibility(View.GONE);

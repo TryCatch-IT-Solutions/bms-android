@@ -194,6 +194,7 @@ public class ScanFaceActivity extends CameraSettingActivity implements CameraMan
         scanFaceBinding = ActivityScanFaceBinding.inflate(getLayoutInflater());
         setContentView(scanFaceBinding.getRoot());
 
+
         mProgressDialog = new ProgressDialog(this);
 
         cameraView = scanFaceBinding.preview;
@@ -399,9 +400,7 @@ public class ScanFaceActivity extends CameraSettingActivity implements CameraMan
                                 if (recognizeResult != null && recognizeResult.length > 0) {
                                     boolean ok = false;
                                     for (FacePassRecognitionResult result : recognizeResult) {
-                                        Log.d("ScanFace", "faceTokens:" + Arrays.toString(result.faceToken));
                                         String faceToken = new String(result.faceToken, StandardCharsets.ISO_8859_1);
-                                        Log.e("ScanFace", "recognize a face with faceToken：" + faceToken);
                                         if (FacePassRecognitionState.RECOGNITION_PASS == result.recognitionState) {
                                             runOnUiThread(new Runnable() {
                                                 @Override

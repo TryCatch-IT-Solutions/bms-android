@@ -54,7 +54,6 @@ public class LoginDataSource {
                 byte[] decodedData = Base64.decode(encryptedData, Base64.DEFAULT);
                 String decryptedData = EncryptionUtil.decrypt(decodedData);
                 String[] userData = decryptedData.split(",");
-                Log.d("LoginDataSource", "getUserData: " + userData[0] + ", " + userData[1] + ", " + userData[2]);
                 return new LoggedInUser(userData[0], userData[0], userData[1], userData[2], Long.parseLong(userData[3]), userData[4]);
             }
         } catch (Exception e) {

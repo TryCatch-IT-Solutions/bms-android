@@ -485,10 +485,41 @@ public class Configuration extends AppCompatActivity {
 
             @Override
             public void afterTextChanged(Editable s) {
-                SharedPreferences sharedPreferences = getSharedPreferences("device_settings", Context.MODE_PRIVATE);
-                SharedPreferences.Editor editor = sharedPreferences.edit();
-                editor.putString("DEVICE_SYNC_INTERVAL", s.toString());
-                editor.apply();
+                String input = s.toString().trim();
+                
+                // Check if input is empty
+                if (input.isEmpty()) {
+                    inputDeviceSyncInterval.setError(null); // Clear any previous error
+                    return;
+                }
+                
+                try {
+                    // Try to parse as long first to check if it exceeds Integer.MAX_VALUE
+                    long value = Long.parseLong(input);
+                    
+                    // Check if the value exceeds Integer.MAX_VALUE
+                    if (value > Integer.MAX_VALUE) {
+                        inputDeviceSyncInterval.setError("Value exceeds maximum allowed integer value (" + Integer.MAX_VALUE + ")");
+                        return;
+                    }
+                    
+                    // Check if the value is negative
+                    if (value < 0) {
+                        inputDeviceSyncInterval.setError("Device sync interval must be a positive integer");
+                        return;
+                    }
+                    
+                    // Value is valid, clear any error and save it
+                    inputDeviceSyncInterval.setError(null);
+                    SharedPreferences sharedPreferences = getSharedPreferences("device_settings", Context.MODE_PRIVATE);
+                    SharedPreferences.Editor editor = sharedPreferences.edit();
+                    editor.putString("DEVICE_SYNC_INTERVAL", input);
+                    editor.apply();
+                    
+                } catch (NumberFormatException e) {
+                    // Input is not a valid integer
+                    inputDeviceSyncInterval.setError("Please enter a valid integer value");
+                }
             }
         });
 
@@ -501,10 +532,41 @@ public class Configuration extends AppCompatActivity {
 
             @Override
             public void afterTextChanged(Editable s) {
-                SharedPreferences sharedPreferences = getSharedPreferences("device_settings", Context.MODE_PRIVATE);
-                SharedPreferences.Editor editor = sharedPreferences.edit();
-                editor.putString("SCREEN_TIMEOUT", s.toString());
-                editor.apply();
+                String input = s.toString().trim();
+                
+                // Check if input is empty
+                if (input.isEmpty()) {
+                    inputScreenTimeout.setError(null); // Clear any previous error
+                    return;
+                }
+                
+                try {
+                    // Try to parse as long first to check if it exceeds Integer.MAX_VALUE
+                    long value = Long.parseLong(input);
+                    
+                    // Check if the value exceeds Integer.MAX_VALUE
+                    if (value > Integer.MAX_VALUE) {
+                        inputScreenTimeout.setError("Value exceeds maximum allowed integer value (" + Integer.MAX_VALUE + ")");
+                        return;
+                    }
+                    
+                    // Check if the value is negative
+                    if (value < 0) {
+                        inputScreenTimeout.setError("Screen timeout must be a positive integer");
+                        return;
+                    }
+                    
+                    // Value is valid, clear any error and save it
+                    inputScreenTimeout.setError(null);
+                    SharedPreferences sharedPreferences = getSharedPreferences("device_settings", Context.MODE_PRIVATE);
+                    SharedPreferences.Editor editor = sharedPreferences.edit();
+                    editor.putString("SCREEN_TIMEOUT", input);
+                    editor.apply();
+                    
+                } catch (NumberFormatException e) {
+                    // Input is not a valid integer
+                    inputScreenTimeout.setError("Please enter a valid integer value");
+                }
             }
         });
 

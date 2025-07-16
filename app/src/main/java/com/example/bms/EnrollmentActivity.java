@@ -124,7 +124,6 @@ public class EnrollmentActivity extends AppCompatActivity {
                     Intent data = result.getData();
                     if (data != null && data.getSerializableExtra("dataMap") != null) {
                         faceDataMap = (HashMap<Integer, String>) data.getSerializableExtra("dataMap");
-                        Log.d("faceDataMap", "faceDataMap: " + faceDataMap);
                         if (faceDataMap != null) {
                             faceViewRegistered.setVisibility(View.VISIBLE);
                             scanFaceCard.setVisibility(View.GONE);
@@ -142,8 +141,7 @@ public class EnrollmentActivity extends AppCompatActivity {
 
         mProgressDialog = new ProgressDialog(this);
 
-        Objects.requireNonNull(getWindow().getInsetsController()).hide(WindowInsetsCompat.Type.systemBars());
-
+        // Objects.requireNonNull(getWindow().getInsetsController()).hide(WindowInsetsCompat.Type.systemBars());
 
         dbHelper = new DatabaseHelper(this);
 
@@ -574,8 +572,6 @@ public class EnrollmentActivity extends AppCompatActivity {
 
         NfcManager manager = (NfcManager) getSystemService(Context.NFC_SERVICE);
         mNfcAdapter = manager.getDefaultAdapter();
-
-        System.out.println("The adapter is: " + mNfcAdapter);
 
         if (mNfcAdapter == null) {
             // Device does not support NFC

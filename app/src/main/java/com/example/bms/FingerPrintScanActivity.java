@@ -113,7 +113,6 @@ public class FingerPrintScanActivity extends AppCompatActivity {
                 runOnUiThread(new Runnable() {
                     @Override
                     public void run() {
-                        Log.d("FingerPrintScanActivity", "initResult: " + i + " " + s);
                         if (fingerSDK == null) {
                             Log.d("FingerPrintScanActivity", "run: fingerSDK is null");
                             return;
@@ -319,7 +318,7 @@ public class FingerPrintScanActivity extends AppCompatActivity {
             if (index < currentFingerIndex) {
                 currentFingerIndex = index;
             }
-            Toast.makeText(this, "Finger " + (index + 1) + " reset", Toast.LENGTH_SHORT).show();
+//            Toast.makeText(this, "Finger " + (index + 1) + " reset", Toast.LENGTH_SHORT).show();
         }
         save_finger.setVisibility(View.GONE);
     }

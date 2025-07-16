@@ -70,7 +70,6 @@ public class EnrollmentList extends AppCompatActivity {
             employeeList = dbHelper.getPaginatedUsers(PAGE_SIZE, currentPage * PAGE_SIZE);
         } else {
             String groupId = getGroupId(this);
-            System.out.println("Group ID hereeee: " + groupId);
             employeeList = dbHelper.getPaginatedUsersByGroupId(groupId, PAGE_SIZE, currentPage * PAGE_SIZE);
         }
         employeeAdapter.updateData(employeeList);
@@ -98,7 +97,6 @@ public class EnrollmentList extends AppCompatActivity {
             employeeAdapter.updateData(filteredList);
         }else{
             List<User> filteredList = dbHelper.searchUsersByGroupId(query,getGroupId(this),  PAGE_SIZE, currentPage * PAGE_SIZE);
-            System.out.println("Filtered List: " + getGroupId(this));
             employeeAdapter.updateData(filteredList);
         }
 

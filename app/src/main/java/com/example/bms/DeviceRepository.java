@@ -163,6 +163,33 @@ public class DeviceRepository {
         }
     }
 
+    public void updateDeviceGroupIdBySerial(String serialNo, long groupId) {
+        SQLiteDatabase db = databaseHelper.getWritableDatabase();
+        ContentValues values = new ContentValues();
+        values.put(DatabaseHelper.COLUMN_GROUP_ID, groupId);
+        values.put(DatabaseHelper.COLUMN_UPDATED_AT, databaseHelper.getCurrentDateTime());
+        values.put("is_synced", 0); 
+
+        db.update(DatabaseHelper.TABLE_DEVICES, values, DatabaseHelper.COLUMN_SERIAL_NO + " = ?", new String[]{serialNo});
+        db.close();
+    }
+
+
+    public long getModelGroupId(String model,String serialNo) {
+        SQLiteDatabase db = databaseHelper.getReadableDatabase();
+        Cursor cursor = db.rawQuery("SELECT " + DatabaseHelper.COLUMN_GROUP_ID + " FROM " + DatabaseHelper.TABLE_DEVICES + " WHERE " + DatabaseHelper.COLUMN_MODEL + " = ? AND " + DatabaseHelper.COLUMN_SERIAL_NO + " = ? LIMIT 1", new String[]{model, serialNo});
+
+        if (cursor.moveToFirst()) {
+            long groupId = cursor.getLong(cursor.getColumnIndexOrThrow(DatabaseHelper.COLUMN_GROUP_ID));
+            cursor.close();
+            db.close();
+            return groupId;
+        } else {
+            cursor.close();
+            db.close();
+            return -1;
+        }
+    }
     public long getModelGroupId(String model) {
         SQLiteDatabase db = databaseHelper.getReadableDatabase();
         Cursor cursor = db.rawQuery("SELECT " + DatabaseHelper.COLUMN_GROUP_ID + " FROM " + DatabaseHelper.TABLE_DEVICES + " WHERE " + DatabaseHelper.COLUMN_MODEL + " = ? LIMIT 1", new String[]{model});

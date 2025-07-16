@@ -109,8 +109,6 @@ public class LoginActivity extends AppCompatActivity {
             for (int i = 0; i < users.length(); i++) {
                 JSONObject user = users.getJSONObject(i);
 
-                System.out.println("User: " + user.toString());
-
                 long groupId = user.isNull("group_id") ? 0 : user.getLong("group_id");
                 long userId = userRepository.insertSyncUser(
                         groupId,
@@ -204,8 +202,6 @@ public class LoginActivity extends AppCompatActivity {
 
             for (int i = 0; i < groups.length(); i++) {
                 JSONObject group = groups.getJSONObject(i);
-
-                System.out.println("Group: " + group.toString());
 
                 groupRepository.insertGroup(
                         group.getLong("id"),

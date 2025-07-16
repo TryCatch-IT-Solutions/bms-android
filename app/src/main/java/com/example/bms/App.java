@@ -119,7 +119,6 @@ public class App extends Application {
 //                    .setMinUpdateIntervalMillis(1)
 //                    .setMinUpdateDistanceMeters(1)
                     .build();
-            System.out.println("Location request created");
         }else{
             ExecutorService executor = Executors.newSingleThreadExecutor();
             executor.execute(this::syncMyDevice);
@@ -143,12 +142,10 @@ public class App extends Application {
                     executor.execute(() -> syncMyDevice());
                 }
 
-                Log.d("AppLocation", "onLocationResult: " + locationResult.getLastLocation());
             }
 
             @Override
             public void onLocationAvailability(@NonNull LocationAvailability locationAvailability) {
-                Log.d("AppLocation", "onLocationAvailability: " + locationAvailability.isLocationAvailable());
                 ExecutorService executor = Executors.newSingleThreadExecutor();
                 executor.execute(() -> syncMyDevice());
             }
@@ -164,7 +161,6 @@ public class App extends Application {
             return;
         }
 
-        Log.d("AppLocation", "Requesting location updates");
         if(fusedLocationClient != null) {
             fusedLocationClient.requestLocationUpdates(locationRequest, locationCallback, null)
                     .addOnSuccessListener(aVoid -> Log.d("Location", "Successfully requested location updates"))
@@ -226,7 +222,6 @@ public class App extends Application {
 
 //        daoSession = getDaoSession();
 
-        Log.d("Device", "DeviceGroupId Here: " + getDeviceGroupId());
 
         String access = getAccess();
 
@@ -234,7 +229,6 @@ public class App extends Application {
 
         long snapshotRetention = getSnapshotRetention();
 
-        Log.d("SnapshotRetention", "Snapshot Retention: " + snapshotRetention);
 
 
         Runnable cleanupTask = new Runnable() {
@@ -316,7 +310,6 @@ public class App extends Application {
             }
 
             int responseCode = conn.getResponseCode();
-            Log.d("DeviceRegistration", "Response Code: " + responseCode);
 
             try (BufferedReader br = new BufferedReader(
                     new InputStreamReader(conn.getInputStream(), "utf-8"))) {
@@ -336,7 +329,6 @@ public class App extends Application {
     }
 
     private void uploadData(){
-        Log.d("App", "Uploading data");
         new Thread(new Runnable() {
             @Override
             public void run() {
@@ -359,7 +351,6 @@ public class App extends Application {
 
     private void downloadData(){
 
-        Log.d("App", "Downloading data");
         new Thread(new Runnable() {
             @Override
             public void run() {
@@ -501,8 +492,6 @@ public class App extends Application {
                         secondaryLogoPath = null;
                     }
 
-                    Log.d("DeviceSettings", "App Token: " + appToken + ", Fingerprint Score Threshold: " + fingerprintScoreThreshold + ", Primary Logo: " + primaryLogo + ", Secondary Logo: " + secondaryLogo + ", Snapshot Retention: " + snapshotRetention + ", Stranger Detection: " + strangerDetection);
-
                     // Store the settings in SharedPreferences
                     SharedPreferences.Editor editor = sharedPreferences.edit();
                     editor.putString("APP_TOKEN", appToken);
@@ -531,7 +520,6 @@ public class App extends Application {
             } catch (Exception e) {
                 handler.post(() -> {
                     Log.e("App", "Error: " + e.getMessage());
-//                    Toast.makeText(this, "Error: " + e.getMessage(), Toast.LENGTH_SHORT).show();
                 });
                 e.printStackTrace();
             }
@@ -616,7 +604,10 @@ public class App extends Application {
 //                        Toast.makeText(App.this, "Image uploaded successfully", Toast.LENGTH_SHORT).show()
                     });
                 } else {
-                    handler.post(() -> Toast.makeText(App.this, "Failed to upload image", Toast.LENGTH_SHORT).show());
+                    handler.post(() -> {
+//                        Toast.makeText(App.this, "Failed to upload image", Toast.LENGTH_SHORT).show();
+                        Log.e("FAILED_UPLOAD","Failed to upload image");
+                    });
                 }
             } catch (Exception e) {
                 handler.post(() -> Toast.makeText(App.this, "Error: " + e.getMessage(), Toast.LENGTH_SHORT).show());
@@ -639,8 +630,6 @@ public class App extends Application {
             return;
         }
 
-
-        Log.d("DeviceRegistration", "Device Battery: " + getDeviceBattery());
 
         ExecutorService executor = Executors.newSingleThreadExecutor();
 
@@ -685,8 +674,6 @@ public class App extends Application {
                 metadata.put("battery", getDeviceBattery());
                 deviceDetails.put("metadata", metadata);
 
-                Log.d("DeviceRegistration", "Lat: " + latLong[0] + ", Lon: " + latLong[1]);
-
                 deviceDetails.put("is_online", true);
                 deviceDetails.put("last_sync", dbHelper.getCurrentDateTime());
                 deviceDetails.put("last_activity", dbHelper.getCurrentDateTime());
@@ -708,14 +695,12 @@ public class App extends Application {
                                 uploadImage("PRIMARY_LOGO", primaryLogoFile);
                             }
                         }
-
                         if(getSecondaryLogo() != null) {
                             File secondaryLogoFile = new File(getSecondaryLogo());
                             if (secondaryLogoFile.exists()) {
                                 uploadImage("SECONDARY_LOGO", secondaryLogoFile);
                             }
                         }
-
                     }
                 }else{
                     deviceDetails.put("manual_time_entry", false);
@@ -768,7 +753,6 @@ public class App extends Application {
                 }
 
                 int responseCode = conn.getResponseCode();
-                Log.d("DeviceRegistration", "Response Code: " + responseCode);
 
                 try (BufferedReader br = new BufferedReader(
                         new InputStreamReader(conn.getInputStream(), "utf-8"))) {
@@ -777,7 +761,6 @@ public class App extends Application {
                     while ((responseLine = br.readLine()) != null) {
                         response.append(responseLine.trim());
                     }
-                    Log.d("DeviceRegistration", "Response: " + response.toString());
                     deviceRepository.updateSyncedDevice(serialNo);
                 }
 
@@ -818,7 +801,6 @@ public class App extends Application {
             e.printStackTrace();
         }
 
-//        Log.d("Location", "Lat: " + latitude + ", Lon: " + longitude);
         return new double[]{latitude, longitude};
     }
 
@@ -847,7 +829,6 @@ public class App extends Application {
 
             conn.disconnect();
 
-            Log.d("DeviceResponse 1:", response.toString());
             JSONArray devices = new JSONArray(response.toString());
 
             DeviceRepository deviceRepository = new DeviceRepository(App.this);
@@ -869,7 +850,6 @@ public class App extends Application {
                         uploadData();
                     }
 
-                    Log.d("DeviceRegistration", "Your device: " + device.toString());
                 }
 
                 if(storedDevice != null && device.getString("serial_no").equals(storedDevice.getSerialNo()) && !storedDevice.isSynced() ) {
@@ -906,7 +886,6 @@ public class App extends Application {
     }
 
     private void syncUsersFromWeb(){
-        Log.d("SyncingUsers","Syncing users from web");
 
         String access = getAccess();
         if(access.equals("offline")) {
@@ -918,7 +897,6 @@ public class App extends Application {
             public void onSuccess() {
 
                 try {
-                    Log.d("SyncingUsers",App.BASE_URL + "/sync/users/login");
 
                     URL url = new URL(App.BASE_URL + "/sync/users/login");
                     HttpURLConnection conn = (HttpURLConnection) url.openConnection();
@@ -940,7 +918,6 @@ public class App extends Application {
 
                     conn.disconnect();
 
-                    Log.d("Response 2:", response.toString());
                     JSONArray users = new JSONArray(response.toString());
                     UserRepository userRepository = new UserRepository(App.this);
 
@@ -949,10 +926,7 @@ public class App extends Application {
 
                     for (int i = 0; i < users.length(); i++) {
                         JSONObject user = users.getJSONObject(i);
-                        System.out.println("User: " + user.toString());
-
                         long groupId = user.isNull("group_id") ? 0 : user.getLong("group_id");
-                        System.out.println("GGroup ID: " + groupId);
                         long userId = userRepository.insertOrUpdate(
                                 groupId,
                                 user.getString("first_name"),
@@ -1066,7 +1040,6 @@ public class App extends Application {
                 byte[] decodedData = Base64.decode(encryptedData, Base64.DEFAULT);
                 String decryptedData = EncryptionUtil.decrypt(decodedData);
                 String[] userData = decryptedData.split(",");
-                System.out.println("UserToken is: " + userData[5]);
                 return userData[5]; // Assuming the token is the 6th element in the array
             }
         } catch (Exception e) {
@@ -1085,7 +1058,6 @@ public class App extends Application {
     public void getAnnouncements() {
 
         String access = getAccess();
-        System.out.println("Access is: " + access);
 
         if(access.equals("offline")) {
             return;
@@ -1116,7 +1088,6 @@ public class App extends Application {
                 conn.setRequestProperty("Accept", "application/json");
                 conn.setRequestProperty("Authorization", "Bearer " +getToken(App.this));
 
-                System.out.println("Token is real: " + getToken(App.this));
 
                 if (conn.getResponseCode() != 200) {
                     throw new RuntimeException("Failed : HTTP error code : " + conn.getResponseCode());
@@ -1131,7 +1102,6 @@ public class App extends Application {
 
                 conn.disconnect();
 
-                Log.d("Announcement:", response.toString());
                 JSONArray announcements = new JSONArray(response.toString());
 
                 AnnouncementRepository repository = new AnnouncementRepository(App.this);
@@ -1143,18 +1113,15 @@ public class App extends Application {
                     LoggedInUser user = userRepository.getUserByEmail(announcement.getString("email"));
 
                     if(user == null) {
-                        System.out.println("User not found: " + announcement.getString("email"));
                         continue;
                     }
 
                     if(repository.hasAnnouncement(announcement.getLong("user_id"), announcement.getString("title"), announcement.getString("message"), announcement.getString("expiration"))) {
-                        System.out.println("Announcement already exists: " + announcement.toString());
                         continue;
                     }
 
                     repository.insertAnnouncement(Long.parseLong(user.getUserId()), announcement.getString("title"), announcement.getString("message"), announcement.getString("expiration"));
                     // Example: Log the announcement details
-                    Log.d("Announcement", "Title: " + announcement.getString("title") + ", Message: " + announcement.getString("message"));
                 }
 
             } catch (Exception e) {
@@ -1172,7 +1139,6 @@ public class App extends Application {
     public void getTimeEntries() {
 
         String access = getAccess();
-        System.out.println("Access is: " + access);
 
         if(access.equals("offline")) {
             return;
@@ -1210,7 +1176,6 @@ public class App extends Application {
 
                 conn.disconnect();
 
-                Log.d("Response 1:", response.toString());
                 JSONArray timeEntries = new JSONArray(response.toString());
 
                 UserRepository userRepository = new UserRepository(App.this);
@@ -1221,7 +1186,6 @@ public class App extends Application {
                     long userId = userRepository.findUserIdByEmail(entry.getJSONObject("employee").getString("email"));
 
                     if(repository.hasTimeEntry(userId, entry.getString("datetime"))) {
-                        System.out.println("Time entry already exists: " + entry.toString());
                         continue;
                     }
 
@@ -1235,7 +1199,6 @@ public class App extends Application {
                             entry.getString("serial_no")
                     );
 
-                    System.out.println("Time: " + entry.toString());
                 }
 
             } catch (Exception e) {
@@ -1267,8 +1230,6 @@ public class App extends Application {
     @SuppressLint("Range")
     public void syncTimeEntriesPaginated(Context context,SyncCallback callback, int _limit) {
         String access = getAccess();
-        System.out.println("Access is: " + access);
-
 
         if (access.equals("offline")) {
             if (callback != null) {
@@ -1333,7 +1294,6 @@ public class App extends Application {
                             timeEntry.put("deleted_by", cursor.getString(cursor.getColumnIndex(DatabaseHelper.COLUMN_DELETED_BY)));
 
 
-                            Log.d("SyncTimeEntriesTask", "Snapshot Type: " + cursor.getString(cursor.getColumnIndex(DatabaseHelper.COLUMN_TYPE)));
                             String snapshotPath = cursor.getString(cursor.getColumnIndex("snapshot"));
                             if (snapshotPath != null && !snapshotPath.isEmpty()) {
                                 File imageFile = new File(snapshotPath);
@@ -1383,7 +1343,6 @@ public class App extends Application {
                         dos.writeBytes(jsonData.getJSONArray("time_entries").toString());
                         dos.writeBytes("\r\n");
 
-                        Log.d("SyncTimeEntriesTask", "JSON Data: " + jsonData.toString());
                         // Attach image files
                         for (int i = 0; i < imageFiles.size(); i++) {
                             File imageFile = imageFiles.get(i);
@@ -1466,7 +1425,6 @@ public class App extends Application {
     @SuppressLint("Range")
     public void syncTimeEntriesOnLogout(Context context, SyncCallback callback,int limit) {
         String access = getAccess();
-        System.out.println("Access is: " + access);
 
         if (access.equals("offline")) {
             if (callback != null) {
@@ -1492,8 +1450,6 @@ public class App extends Application {
                 }
                 return;
             }
-
-            Log.d("SyncTimeEntriesTask", "Cursor count: " + cursor.getCount());
 
             JSONArray timeEntriesArray = new JSONArray();
             List<File> imageFiles = new ArrayList<>();
@@ -1571,7 +1527,6 @@ public class App extends Application {
                     dos.writeBytes(jsonData.getJSONArray("time_entries").toString());
                     dos.writeBytes("\r\n");
 
-                    Log.d("SyncTimeEntriesTask", "JSON Data: " + jsonData.toString());
                     // Attach image files
                     for (int i = 0; i < imageFiles.size(); i++) {
                         File imageFile = imageFiles.get(i);
@@ -1642,7 +1597,6 @@ public class App extends Application {
     @SuppressLint("Range")
     public void syncUsersOnLogout(Context context, SyncCallback callback)  {
         String access = getAccess();
-        System.out.println("Access is: " + access);
 
         if (access.equals("offline")) {
             if (callback != null) {
@@ -1651,13 +1605,13 @@ public class App extends Application {
             return;
         }
 
+
+        syncMyDevice();
         String token = getToken(context);
-        System.out.println("Token is: " + token);
 
         SQLiteDatabase db = dbHelper.getReadableDatabase();
         Cursor cursor = db.rawQuery("SELECT * FROM " + DatabaseHelper.TABLE_USERS + " WHERE is_synced = 0", null);
 
-        Log.d("SyncUsersTask", "Cursor count: " + cursor.getCount());
         if (cursor.getCount() < 1) {
             cursor.close();
             if (callback != null) {
@@ -1735,8 +1689,6 @@ public class App extends Application {
         } catch (JSONException e) {
             throw new RuntimeException(e);
         }
-        System.out.println("UserRe:" + jsonData);
-
         writeResponseToFile(jsonData);
         ExecutorService executor = Executors.newSingleThreadExecutor();
         Handler handler = new Handler(Looper.getMainLooper());
@@ -1770,8 +1722,6 @@ public class App extends Application {
                         while ((responseLine = br.readLine()) != null) {
                             response.append(responseLine.trim());
                         }
-                        System.out.println("The Response: " + response.toString());
-                        System.out.println("Token: " + token);
                         if (response.toString().equals("false")) {
                             errorMessage = "Unauthorized, please login again.";
                         } else {
@@ -1803,7 +1753,6 @@ public class App extends Application {
                     }
                 } else {
                     if (callback != null) {
-                        System.out.println("Error is: " + finalErrorMessage);
 
                         if (finalErrorMessage.contains("Unauthorized")) {
                             refreshToken();
@@ -1838,7 +1787,6 @@ public class App extends Application {
 
         String currentUserEmail = getCurrentEmail();
 
-        System.out.println("Current Email is: " + currentUserEmail);
 
         executor.execute(() -> {
             try {
@@ -1868,7 +1816,6 @@ public class App extends Application {
                     // Save the new token to user_prefs
                     // Encrypt the user data
 
-                    System.out.println("The Group ID is: " + userJson.isNull("group_id"));
 
                     long userGroupId = userJson.isNull("group_id") ? 0 : userJson.getLong("group_id");
 //                    System.out.println("The new Encrypt is" + displayName + "," + userJson.getString("email") + "," + "No_Password" + "," + userJson.getLong("group_id")  + "," + userJson.getString("role") + "," + newToken);
@@ -1880,28 +1827,23 @@ public class App extends Application {
                     editor.apply();
 
                     handler.post(() -> {
-                        Log.d("RefreshToken", "Token refreshed successfully");
                         syncUsersOnLogout(App.this, new SyncCallback() {
                             @Override
                             public void onSuccess() {
-                                Log.d("RefreshToken", "Users synced successfully");
                             }
 
                             @Override
                             public void onFailure(String errorMessage) {
-                                Log.e("RefreshToken", "Error syncing users: " + errorMessage);
                             }
                         });
 
                         syncTimeEntriesOnLogout(App.this, new SyncCallback() {
                             @Override
                             public void onSuccess() {
-                                Log.d("RefreshToken", "Time entries synced successfully");
                             }
 
                             @Override
                             public void onFailure(String errorMessage) {
-                                Log.e("RefreshToken", "Error syncing time entries: " + errorMessage);
                             }
                         });
                     });
@@ -1954,14 +1896,12 @@ public class App extends Application {
     public class FileCleanupUtil {
 
         public void deleteOldFiles(long minutes) {
-            Log.d("FileCleanupUtil", "Deleting old files older than " + minutes + " minutes...");
 
             // Define the folder path
             File folder = new File(Environment.getExternalStorageDirectory(), "snapshots");
 
             // Check if the folder exists
             if (!folder.exists() || !folder.isDirectory()) {
-                Log.d("FileCleanupUtil", "Folder does not exist or is not a directory.");
                 return;
             }
 
@@ -1975,7 +1915,6 @@ public class App extends Application {
             File[] files = folder.listFiles();
 
             if (files == null || files.length == 0) {
-                Log.d("FileCleanupUtil", "No files found in the folder.");
                 return;
             }
 
@@ -1987,13 +1926,6 @@ public class App extends Application {
                     // Check if the file is older than the specified time
                     if (currentTime - lastModified > thresholdInMillis) {
                         boolean isDeleted = file.delete();
-                        if (isDeleted) {
-                            Log.d("FileCleanupUtil", "Deleted file: " + file.getName());
-                        } else {
-                            Log.d("FileCleanupUtil", "Failed to delete file: " + file.getName());
-                        }
-                    } else {
-                        Log.d("FileCleanupUtil", "File is not older than " + minutes + " minutes: " + file.getName());
                     }
                 }
             }

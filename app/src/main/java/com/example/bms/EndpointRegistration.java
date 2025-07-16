@@ -74,7 +74,6 @@ public class EndpointRegistration extends AppCompatActivity {
         String apiEndpoint = sharedPreferences.getString("API_ENDPOINT", "http://192.168.1.58:8000/api");
         TextInputEditText editTextApiEndpoint = findViewById(R.id.api_endpoint);
         editTextApiEndpoint.setText(apiEndpoint);
-        Log.d("Configuration", "API Endpoint: " + apiEndpoint);
     }
 
     private void getApiToken() {
@@ -126,8 +125,6 @@ public class EndpointRegistration extends AppCompatActivity {
 
             for (int i = 0; i < groups.length(); i++) {
                 JSONObject group = groups.getJSONObject(i);
-
-                System.out.println("Group: " + group.toString());
 
                 groupRepository.insertGroup(
                         group.getLong("id"),
@@ -270,8 +267,6 @@ public class EndpointRegistration extends AppCompatActivity {
 
             for (int i = 0; i < users.length(); i++) {
                 JSONObject user = users.getJSONObject(i);
-
-                System.out.println("User: " + user.toString());
 
                 long groupId = user.isNull("group_id") ? 0 : user.getLong("group_id");
                 long userId = userRepository.insertSyncUser(

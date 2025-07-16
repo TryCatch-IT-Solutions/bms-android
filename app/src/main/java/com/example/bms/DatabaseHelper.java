@@ -396,9 +396,7 @@ public class DatabaseHelper extends SQLiteOpenHelper {
 
 
     public String getCurrentDateTime() {
-        Log.d("Datetime", "Test");
         SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
-        Log.d("Datetime", "Test Done" + sdf.format(new Date()));
 
         return sdf.format(new Date());
     }
