@@ -170,4 +170,10 @@ public class BiometricRepository {
         db.close();
         return id;
     }
+
+    public void resetBiometricsTable() {
+        SQLiteDatabase db = dbHelper.getWritableDatabase();
+        db.execSQL("DELETE FROM " + DatabaseHelper.TABLE_BIOMETRICS);
+        db.close();
+    }
 }

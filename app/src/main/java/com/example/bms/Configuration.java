@@ -66,6 +66,7 @@ public class Configuration extends AppCompatActivity {
     private String token;
 
     private SweetAlertDialog dialog;
+    private SweetAlertDialog resetDialog;
 
     private static final int REQUEST_CODE_PRIMARY_LOGO = 1;
     private static final int REQUEST_CODE_SECONDARY_LOGO = 2;
@@ -246,6 +247,362 @@ public class Configuration extends AppCompatActivity {
         } catch (IOException e) {
             e.printStackTrace();
             Toast.makeText(this, "Export failed", Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    private void performReset() {
+        // Show confirmation dialog
+        new SweetAlertDialog(Configuration.this, SweetAlertDialog.WARNING_TYPE)
+                .setTitleText("Reset Database")
+                .setContentText("This will delete all local data and re-sync from the server. Are you sure?")
+                .setCancelText("Cancel")
+                .setConfirmText("Reset")
+                .showCancelButton(true)
+                .setConfirmClickListener(sDialog -> {
+                    sDialog.dismissWithAnimation();
+                    startReset();
+                })
+                .show();
+    }
+
+    private void startReset() {
+        if(getAccess().equals("offline")) {
+            new SweetAlertDialog(Configuration.this, SweetAlertDialog.ERROR_TYPE)
+                    .setTitleText("Offline Mode")
+                    .setContentText("Reset is not available in offline mode.")
+                    .show();
+            return;
+        }
+
+        // Show loading dialog
+        resetDialog = new SweetAlertDialog(Configuration.this, SweetAlertDialog.PROGRESS_TYPE);
+        resetDialog.getProgressHelper().setBarColor(getResources().getColor(R.color.primary));
+        resetDialog.setTitleText("Preparing Reset...");
+        resetDialog.setContentText("Syncing pending data to server...");
+        resetDialog.setCancelable(false);
+        resetDialog.show();
+
+        // Step 1: Sync time entries first
+        ((App) getApplication()).syncTimeEntriesPaginated(Configuration.this, new App.SyncCallback() {
+            @Override
+            public void onSuccess() {
+                Log.d("Configuration", "Time entries synced successfully");
+
+                // Step 2: Sync users and biometrics
+                runOnUiThread(() -> {
+                    if (resetDialog != null) {
+                        resetDialog.setContentText("Syncing users and biometrics...");
+                    }
+                });
+
+                ((App) getApplication()).syncUsersOnLogout(Configuration.this, new App.SyncCallback() {
+                    @Override
+                    public void onSuccess() {
+                        Log.d("Configuration", "Users synced successfully");
+
+                        // Step 3: Now proceed with reset
+                        runOnUiThread(() -> {
+                            if (resetDialog != null) {
+                                resetDialog.setContentText("All data synced. Resetting database...");
+                            }
+                        });
+
+                        proceedWithReset();
+                    }
+
+                    @Override
+                    public void onFailure(String errorMessage) {
+                        Log.e("Configuration", "Failed to sync users: " + errorMessage);
+
+                        runOnUiThread(() -> {
+                            if (resetDialog != null) {
+                                resetDialog.dismissWithAnimation();
+                            }
+
+                            new SweetAlertDialog(Configuration.this, SweetAlertDialog.ERROR_TYPE)
+                                    .setTitleText("Sync Failed")
+                                    .setContentText("Failed to sync users to server: " + errorMessage + "\n\nReset aborted to prevent data loss.")
+                                    .show();
+                        });
+                    }
+                });
+            }
+
+            @Override
+            public void onFailure(String errorMessage) {
+                Log.e("Configuration", "Failed to sync time entries: " + errorMessage);
+
+                runOnUiThread(() -> {
+                    if (resetDialog != null) {
+                        resetDialog.dismissWithAnimation();
+                    }
+
+                    new SweetAlertDialog(Configuration.this, SweetAlertDialog.ERROR_TYPE)
+                            .setTitleText("Sync Failed")
+                            .setContentText("Failed to sync time entries to server: " + errorMessage + "\n\nReset aborted to prevent data loss.")
+                            .show();
+                });
+            }
+        });
+    }
+
+    private void proceedWithReset() {
+        ExecutorService executor = Executors.newSingleThreadExecutor();
+        Handler handler = new Handler(Looper.getMainLooper());
+
+        executor.execute(() -> {
+            try {
+                // Reset all tables
+                UserRepository userRepository = new UserRepository(Configuration.this);
+                BiometricRepository biometricRepository = new BiometricRepository(Configuration.this);
+                FingerprintRepository fingerprintRepository = new FingerprintRepository(Configuration.this);
+                GroupRepository groupRepository = new GroupRepository(Configuration.this);
+
+                handler.post(() -> {
+                    if (resetDialog != null) {
+                        resetDialog.setContentText("Clearing local database...");
+                    }
+                });
+
+                // Clear all tables
+                userRepository.resetUsersTable();
+                biometricRepository.resetBiometricsTable();
+                fingerprintRepository.resetFingerprintsTable();
+                groupRepository.resetTable();
+
+                handler.post(() -> {
+                    if (resetDialog != null) {
+                        resetDialog.setContentText("Syncing groups from server...");
+                    }
+                });
+
+                // Sync groups first
+                syncGroupsForReset();
+
+                // Wait a bit for groups to sync
+                Thread.sleep(2000);
+
+                handler.post(() -> {
+                    if (resetDialog != null) {
+                        resetDialog.setContentText("Syncing users and biometrics from server...");
+                    }
+                });
+
+                // Sync users and biometrics
+                syncUsersForReset();
+
+                // Wait for sync to complete
+                Thread.sleep(2000);
+
+                handler.post(() -> {
+                    if (resetDialog != null) {
+                        resetDialog.dismissWithAnimation();
+                    }
+
+                    new SweetAlertDialog(Configuration.this, SweetAlertDialog.SUCCESS_TYPE)
+                            .setTitleText("Reset Complete")
+                            .setContentText("All data has been synced and database has been reset successfully")
+                            .setConfirmClickListener(d -> {
+                                d.dismissWithAnimation();
+                            })
+                            .show();
+                });
+
+            } catch (Exception e) {
+                e.printStackTrace();
+                Log.e("Configuration", "Error during reset: " + e.getMessage(), e);
+
+                handler.post(() -> {
+                    if (resetDialog != null) {
+                        resetDialog.dismissWithAnimation();
+                    }
+
+                    new SweetAlertDialog(Configuration.this, SweetAlertDialog.ERROR_TYPE)
+                            .setTitleText("Reset Failed")
+                            .setContentText("Failed to reset database: " + e.getMessage())
+                            .show();
+                });
+            }
+        });
+    }
+
+    private void syncGroupsForReset() {
+        HttpURLConnection conn = null;
+        try {
+            if (App.TOKEN == null || App.TOKEN.isEmpty()) {
+                throw new RuntimeException("Authentication token is null or empty");
+            }
+
+            Log.d("Configuration", "Syncing groups from: " + App.BASE_URL + "/sync/groups");
+            Log.d("Configuration", "Token: " + App.TOKEN.substring(0, Math.min(10, App.TOKEN.length())) + "...");
+
+            URL url = new URL(App.BASE_URL + "/sync/groups");
+            conn = (HttpURLConnection) url.openConnection();
+            conn.setRequestMethod("GET");
+            conn.setRequestProperty("Accept", "application/json");
+            conn.setRequestProperty("Authorization", "Bearer " + App.TOKEN);
+            conn.setConnectTimeout(30000); // 30 seconds
+            conn.setReadTimeout(30000); // 30 seconds
+
+            int responseCode = conn.getResponseCode();
+            Log.d("Configuration", "Response code: " + responseCode);
+
+            if (responseCode != 200) {
+                // Read error stream
+                BufferedReader errorReader = new BufferedReader(new InputStreamReader(conn.getErrorStream()));
+                StringBuilder errorResponse = new StringBuilder();
+                String line;
+                while ((line = errorReader.readLine()) != null) {
+                    errorResponse.append(line);
+                }
+                errorReader.close();
+                Log.e("Configuration", "Error response: " + errorResponse.toString());
+                throw new RuntimeException("Failed : HTTP error code : " + responseCode + " - " + errorResponse.toString());
+            }
+
+            BufferedReader br = new BufferedReader(new InputStreamReader((conn.getInputStream())));
+
+            StringBuilder response = new StringBuilder();
+            String output;
+            while ((output = br.readLine()) != null) {
+                response.append(output);
+            }
+            br.close();
+
+            Log.d("Configuration", "Groups response: " + response.toString());
+
+            org.json.JSONArray groups = new org.json.JSONArray(response.toString());
+            GroupRepository groupRepository = new GroupRepository(this);
+
+            for (int i = 0; i < groups.length(); i++) {
+                org.json.JSONObject group = groups.getJSONObject(i);
+
+                groupRepository.insertGroup(
+                        group.getLong("id"),
+                        group.getString("name"),
+                        group.getString("created_at"),
+                        group.getString("updated_at"));
+            }
+
+            Log.d("Configuration", "Successfully synced " + groups.length() + " groups");
+
+        } catch (Exception e) {
+            e.printStackTrace();
+            Log.e("Configuration", "Error during group sync for reset: " + e.getMessage(), e);
+            throw new RuntimeException("Failed to sync groups: " + e.getMessage(), e);
+        } finally {
+            if (conn != null) {
+                conn.disconnect();
+            }
+        }
+    }
+
+    private void syncUsersForReset() {
+        HttpURLConnection conn = null;
+        try {
+            if (App.TOKEN == null || App.TOKEN.isEmpty()) {
+                throw new RuntimeException("Authentication token is null or empty");
+            }
+
+            Log.d("Configuration", "Syncing users from: " + App.BASE_URL + "/sync/users/login");
+
+            URL url = new URL(App.BASE_URL + "/sync/users/login");
+            conn = (HttpURLConnection) url.openConnection();
+            conn.setRequestMethod("GET");
+            conn.setRequestProperty("Accept", "application/json");
+            conn.setRequestProperty("Authorization", "Bearer " + App.TOKEN);
+            conn.setConnectTimeout(30000); // 30 seconds
+            conn.setReadTimeout(30000); // 30 seconds
+
+            int responseCode = conn.getResponseCode();
+            Log.d("Configuration", "Response code: " + responseCode);
+
+            if (responseCode != 200) {
+                // Read error stream
+                BufferedReader errorReader = new BufferedReader(new InputStreamReader(conn.getErrorStream()));
+                StringBuilder errorResponse = new StringBuilder();
+                String line;
+                while ((line = errorReader.readLine()) != null) {
+                    errorResponse.append(line);
+                }
+                errorReader.close();
+                Log.e("Configuration", "Error response: " + errorResponse.toString());
+                throw new RuntimeException("Failed : HTTP error code : " + responseCode + " - " + errorResponse.toString());
+            }
+
+            BufferedReader br = new BufferedReader(new InputStreamReader((conn.getInputStream())));
+
+            StringBuilder response = new StringBuilder();
+            String output;
+            while ((output = br.readLine()) != null) {
+                response.append(output);
+            }
+            br.close();
+
+            Log.d("Configuration", "Users response received, length: " + response.length());
+            org.json.JSONArray users = new org.json.JSONArray(response.toString());
+            UserRepository userRepository = new UserRepository(this);
+
+            BiometricRepository biometricRepository = new BiometricRepository(Configuration.this);
+            FingerprintRepository fingerprintRepository = new FingerprintRepository(Configuration.this);
+
+            for (int i = 0; i < users.length(); i++) {
+                org.json.JSONObject user = users.getJSONObject(i);
+
+                long groupId = user.isNull("group_id") ? 0 : user.getLong("group_id");
+                long userId = userRepository.insertSyncUser(
+                        groupId,
+                        user.getString("first_name"),
+                        user.getString("middle_name"),
+                        user.getString("last_name"),
+                        user.getString("address1"),
+                        user.getString("address2"),
+                        user.getString("barangay"),
+                        user.getString("municipality"),
+                        user.getString("province"),
+                        user.getString("birth_date"),
+                        user.getString("gender"),
+                        user.getInt("zip_code"),
+                        0,
+                        0,
+                        user.getString("email"),
+                        user.getString("phone_number"),
+                        user.getString("emergency_contact_no"),
+                        user.getString("emergency_contact_name"),
+                        user.getString("role"),
+                        user.getString("password"),
+                        user.getString("created_at"));
+
+                org.json.JSONArray biometrics = user.getJSONArray("biometrics");
+                for (int j = 0; j < biometrics.length(); j++) {
+                    org.json.JSONObject biometric = biometrics.getJSONObject(j);
+                    long biometricId = biometricRepository.insertBiometric(
+                            biometric.getString("key"),
+                            userId,
+                            biometric.getString("type"));
+
+                    org.json.JSONArray fingerprints = biometric.getJSONArray("fingerprints");
+                    for (int k = 0; k < fingerprints.length(); k++) {
+                        org.json.JSONObject fingerprint = fingerprints.getJSONObject(k);
+
+                        fingerprintRepository.insertFingerprint(
+                                biometricId,
+                                fingerprint.getString("key")
+                        );
+                    }
+                }
+            }
+
+            Log.d("Configuration", "Successfully synced " + users.length() + " users");
+
+        } catch (Exception e) {
+            e.printStackTrace();
+            Log.e("Configuration", "Error during user sync: " + e.getMessage(), e);
+            throw new RuntimeException("Failed to sync users: " + e.getMessage(), e);
+        } finally {
+            if (conn != null) {
+                conn.disconnect();
+            }
         }
     }
 
@@ -875,6 +1232,13 @@ public class Configuration extends AppCompatActivity {
                         });
                     }
                 });
+            }
+        });
+
+        findViewById(R.id.button_reset_database).setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                performReset();
             }
         });
 

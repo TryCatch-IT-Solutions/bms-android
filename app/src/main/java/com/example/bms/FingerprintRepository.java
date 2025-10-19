@@ -71,4 +71,10 @@ public class FingerprintRepository {
         db.delete(DatabaseHelper.TABLE_FINGERPRINTS, DatabaseHelper.COLUMN_BIOMETRIC_ID + " = ?", new String[]{String.valueOf(biometricId)});
         db.close();
     }
+
+    public void resetFingerprintsTable() {
+        SQLiteDatabase db = dbHelper.getWritableDatabase();
+        db.execSQL("DELETE FROM " + DatabaseHelper.TABLE_FINGERPRINTS);
+        db.close();
+    }
 }

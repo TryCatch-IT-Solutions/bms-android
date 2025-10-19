@@ -73,6 +73,7 @@ public class LoginActivity extends AppCompatActivity {
 
     private LoginViewModel loginViewModel;
     private ActivityLoginBinding binding;
+    private SweetAlertDialog resetDialog;
 
     long modelGroupId;
 
@@ -221,6 +222,159 @@ public class LoginActivity extends AppCompatActivity {
         } catch (Exception e) {
             e.printStackTrace();
             Log.e("GroupActivity", "Error during group sync: " + e.getMessage(), e);
+        }
+    }
+
+    private void performReset() {
+        // Show confirmation dialog
+        new SweetAlertDialog(LoginActivity.this, SweetAlertDialog.WARNING_TYPE)
+                .setTitleText("Reset Database")
+                .setContentText("This will delete all local data and re-sync from the server. Are you sure?")
+                .setCancelText("Cancel")
+                .setConfirmText("Reset")
+                .showCancelButton(true)
+                .setConfirmClickListener(sDialog -> {
+                    sDialog.dismissWithAnimation();
+                    startReset();
+                })
+                .show();
+    }
+
+    private void startReset() {
+        if(getAccess().equals("offline")) {
+            new SweetAlertDialog(LoginActivity.this, SweetAlertDialog.ERROR_TYPE)
+                    .setTitleText("Offline Mode")
+                    .setContentText("Reset is not available in offline mode.")
+                    .show();
+            return;
+        }
+
+        // Show loading dialog
+        resetDialog = new SweetAlertDialog(LoginActivity.this, SweetAlertDialog.PROGRESS_TYPE);
+        resetDialog.getProgressHelper().setBarColor(getResources().getColor(R.color.primary));
+        resetDialog.setTitleText("Resetting...");
+        resetDialog.setContentText("Please wait while we reset and sync data");
+        resetDialog.setCancelable(false);
+        resetDialog.show();
+
+        ExecutorService executor = Executors.newSingleThreadExecutor();
+        Handler handler = new Handler(Looper.getMainLooper());
+
+        executor.execute(() -> {
+            try {
+                // Reset all tables
+                UserRepository userRepository = new UserRepository(LoginActivity.this);
+                BiometricRepository biometricRepository = new BiometricRepository(LoginActivity.this);
+                FingerprintRepository fingerprintRepository = new FingerprintRepository(LoginActivity.this);
+                GroupRepository groupRepository = new GroupRepository(LoginActivity.this);
+
+                handler.post(() -> {
+                    if (resetDialog != null) {
+                        resetDialog.setContentText("Clearing local database...");
+                    }
+                });
+
+                // Clear all tables
+                userRepository.resetUsersTable();
+                biometricRepository.resetBiometricsTable();
+                fingerprintRepository.resetFingerprintsTable();
+                groupRepository.resetTable();
+
+                handler.post(() -> {
+                    if (resetDialog != null) {
+                        resetDialog.setContentText("Syncing groups...");
+                    }
+                });
+
+                // Sync groups first
+                syncGroupsForReset();
+
+                // Wait a bit for groups to sync
+                Thread.sleep(2000);
+
+                handler.post(() -> {
+                    if (resetDialog != null) {
+                        resetDialog.setContentText("Syncing users and biometrics...");
+                    }
+                });
+
+                // Sync users and biometrics
+                syncUsers();
+
+                // Wait for sync to complete
+                Thread.sleep(2000);
+
+                handler.post(() -> {
+                    if (resetDialog != null) {
+                        resetDialog.dismissWithAnimation();
+                    }
+
+                    new SweetAlertDialog(LoginActivity.this, SweetAlertDialog.SUCCESS_TYPE)
+                            .setTitleText("Reset Complete")
+                            .setContentText("Database has been reset and synced successfully")
+                            .setConfirmClickListener(dialog -> {
+                                dialog.dismissWithAnimation();
+                            })
+                            .show();
+                });
+
+            } catch (Exception e) {
+                e.printStackTrace();
+                Log.e("LoginActivity", "Error during reset: " + e.getMessage(), e);
+
+                handler.post(() -> {
+                    if (resetDialog != null) {
+                        resetDialog.dismissWithAnimation();
+                    }
+
+                    new SweetAlertDialog(LoginActivity.this, SweetAlertDialog.ERROR_TYPE)
+                            .setTitleText("Reset Failed")
+                            .setContentText("Failed to reset database: " + e.getMessage())
+                            .show();
+                });
+            }
+        });
+    }
+
+    private void syncGroupsForReset() {
+        try {
+            URL url = new URL(App.BASE_URL + "/sync/groups");
+            HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+            conn.setRequestMethod("GET");
+            conn.setRequestProperty("Accept", "application/json");
+            conn.setRequestProperty("Authorization", "Bearer " + App.TOKEN);
+
+            if (conn.getResponseCode() != 200) {
+                throw new RuntimeException("Failed : HTTP error code : " + conn.getResponseCode());
+            }
+
+            BufferedReader br = new BufferedReader(new InputStreamReader((conn.getInputStream())));
+
+            StringBuilder response = new StringBuilder();
+            String output;
+            while ((output = br.readLine()) != null) {
+                response.append(output);
+            }
+
+            conn.disconnect();
+
+            JSONArray groups = new JSONArray(response.toString());
+            GroupRepository groupRepository = new GroupRepository(this);
+
+            for (int i = 0; i < groups.length(); i++) {
+                JSONObject group = groups.getJSONObject(i);
+
+                groupRepository.insertGroup(
+                        group.getLong("id"),
+                        group.getString("name"),
+                        group.getString("created_at"),
+                        group.getString("updated_at"));
+            }
+
+        } catch (Exception e) {
+            e.printStackTrace();
+            Log.e("LoginActivity", "Error during group sync for reset: " + e.getMessage(), e);
+            throw new RuntimeException(e);
         }
     }
 
@@ -397,6 +551,15 @@ public class LoginActivity extends AppCompatActivity {
                 loadingProgressBar.setVisibility(View.VISIBLE);
                 loginViewModel.login(LoginActivity.this,usernameEditText.getText().toString(),
                         passwordEditText.getText().toString());
+            }
+        });
+
+        // Reset button click listener
+        MaterialButton resetButton = binding.resetButton;
+        resetButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                performReset();
             }
         });
     }

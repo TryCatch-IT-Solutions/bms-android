@@ -71,7 +71,7 @@ public class EndpointRegistration extends AppCompatActivity {
 
     private void getApiEndpoint() {
         SharedPreferences sharedPreferences = getSharedPreferences(Configuration.PREFS_NAME, Context.MODE_PRIVATE);
-        String apiEndpoint = sharedPreferences.getString("API_ENDPOINT", "http://192.168.1.58:8000/api");
+        String apiEndpoint = sharedPreferences.getString("API_ENDPOINT", "https://arta-bms-api.dai-solutions.com.ph/api");
         TextInputEditText editTextApiEndpoint = findViewById(R.id.api_endpoint);
         editTextApiEndpoint.setText(apiEndpoint);
     }
@@ -305,7 +305,6 @@ public class EndpointRegistration extends AppCompatActivity {
                     for (int k = 0; k < fingerprints.length(); k++) {
                         JSONObject fingerprint = fingerprints.getJSONObject(k);
 
-                        Log.d("Fingerprint", "Fingerprint: " + fingerprint.getString("key"));
 
                         fingerprintRepository.insertFingerprint(
                                 biometricId,
