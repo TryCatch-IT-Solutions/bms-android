@@ -84,9 +84,13 @@ public class LoginActivity extends AppCompatActivity {
             conn.setRequestMethod("GET");
             conn.setRequestProperty("Accept", "application/json");
             conn.setRequestProperty("Authorization", "Bearer " + App.TOKEN);
+            conn.setConnectTimeout(10000); // 10 second connection timeout
+            conn.setReadTimeout(15000); // 15 second read timeout
 
-            if (conn.getResponseCode() != 200) {
-                throw new RuntimeException("Failed : HTTP error code : " + conn.getResponseCode());
+            int responseCode = conn.getResponseCode();
+            if (responseCode != 200) {
+                Log.e("LoginActivity", "Failed to sync users: HTTP " + responseCode);
+                throw new RuntimeException("Failed : HTTP error code : " + responseCode);
             }
 
             BufferedReader br = new BufferedReader(new InputStreamReader((conn.getInputStream())));
@@ -157,6 +161,10 @@ public class LoginActivity extends AppCompatActivity {
         } catch (Exception e) {
             e.printStackTrace();
             Log.e("LoginActivity", "Error during user sync: " + e.getMessage(), e);
+            // Show error to user on UI thread
+            new Handler(Looper.getMainLooper()).post(() -> {
+                Toast.makeText(LoginActivity.this, "Failed to sync users: " + e.getMessage(), Toast.LENGTH_LONG).show();
+            });
         }
     }
 

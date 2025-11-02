@@ -129,8 +129,12 @@ public class InitFacePassHandler {
                     new Thread() {
                         @Override
                         public void run() {
-                            while (true && !activity.isFinishing()) {
-                                while (FacePassHandler.isAvailable()) {
+                            int retryCount = 0;
+                            int maxRetries = 10;
+                            long retryDelay = 500; // 500ms between retries
+
+                            while (retryCount < maxRetries && !activity.isFinishing()) {
+                                if (FacePassHandler.isAvailable()) {
                                     FacePassConfig config;
                                     try {
                                         /* use bin file */
@@ -199,20 +203,43 @@ public class InitFacePassHandler {
                                         mFacePassHandler.initLocalGroup(group_name);
 
                                         iFacePassInit.result(mFacePassHandler);
+                                        return; // Success, exit thread
                                     } catch (FacePassException e) {
-                                        Log.d("mcvsafe", "The Exception: " + e.getMessage());
+                                        Log.e("mcvsafe", "FacePass initialization exception (attempt " + (retryCount + 1) + "/" + maxRetries + "): " + e.getMessage());
                                         e.printStackTrace();
+                                        retryCount++;
+                                        if (retryCount >= maxRetries) {
+                                            Log.e("mcvsafe", "FacePass initialization failed after " + maxRetries + " attempts");
+                                            iFacePassInit.result(null);
+                                            return;
+                                        }
+                                        // Wait before retry
+                                        try {
+                                            sleep(retryDelay * retryCount); // Exponential backoff
+                                        } catch (InterruptedException ie) {
+                                            Log.e("mcvsafe", "Interrupted during retry delay", ie);
+                                            iFacePassInit.result(null);
+                                            return;
+                                        }
+                                    }
+                                } else {
+                                    // SDK not available yet, wait and retry
+                                    retryCount++;
+                                    try {
+                                        /* 如果SDK初始化未完成则需等待 */
+                                        sleep(retryDelay);
+                                        Log.d("mcvsafe", "Waiting for FacePass SDK (attempt " + retryCount + "/" + maxRetries + ")");
+                                    } catch (InterruptedException e) {
+                                        Log.e("mcvsafe", "Interrupted while waiting for SDK", e);
                                         iFacePassInit.result(null);
                                         return;
                                     }
-                                    return;
                                 }
-                                try {
-                                    /* 如果SDK初始化未完成则需等待 */
-                                    sleep(500);
-                                } catch (InterruptedException e) {
-                                    e.printStackTrace();
-                                }
+                            }
+                            // If we exit the loop without success, initialization failed
+                            if (retryCount >= maxRetries) {
+                                Log.e("mcvsafe", "FacePass SDK initialization timeout after " + maxRetries + " attempts");
+                                iFacePassInit.result(null);
                             }
                         }
                     }.start();

@@ -146,7 +146,8 @@ public class TimeEntryRegister extends CameraSettingActivity implements CameraMa
     private FingerSDK fingerSDK;
     private boolean deviceModelNameCheck = false;
     List<Fingerprint> fingerprints;
-    private boolean allowCapture = true;
+    private volatile boolean allowCapture = true; // Make volatile for thread safety
+    private final Object captureLock = new Object(); // Lock for synchronized access
 
     private BiometricRepository biometricRepository;
     private TimeRepository timeRepository;
@@ -168,7 +169,7 @@ public class TimeEntryRegister extends CameraSettingActivity implements CameraMa
 
     private SharedPreferences sharedPreferences;
 
-    int fingerprintScoreThreshold = 80;
+    int fingerprintScoreThreshold = 70; // Lowered from 80 to improve capture reliability
 
     private DevicePolicyManager devicePolicyManager;
     private ComponentName adminComponent;
@@ -257,8 +258,14 @@ public class TimeEntryRegister extends CameraSettingActivity implements CameraMa
 
     private int fingerprintScoreThreshold() {
         SharedPreferences sharedPreferences = getSharedPreferences("device_settings", Context.MODE_PRIVATE);
-        String fingerprintScoreThreshold = sharedPreferences.getString("FINGERPRINT_SCORE_THRESHOLD", "80");
-        return Integer.parseInt(fingerprintScoreThreshold);
+        // Lowered default from 80 to 70 for better reliability
+        String fingerprintScoreThreshold = sharedPreferences.getString("FINGERPRINT_SCORE_THRESHOLD", "70");
+        try {
+            return Integer.parseInt(fingerprintScoreThreshold);
+        } catch (NumberFormatException e) {
+            Log.e("TimeEntryRegister", "Invalid fingerprint threshold, using default 70", e);
+            return 70;
+        }
     }
 
     private String getUserPassword() throws Exception {
@@ -273,28 +280,58 @@ public class TimeEntryRegister extends CameraSettingActivity implements CameraMa
         return "";
     }
 
+    // Thread-safe method to set allowCapture flag
+    private void setAllowCapture(boolean allow) {
+        synchronized (captureLock) {
+            allowCapture = allow;
+        }
+    }
+
+    // Thread-safe method to check allowCapture flag
+    private boolean isAllowCapture() {
+        synchronized (captureLock) {
+            return allowCapture;
+        }
+    }
+
     private void checkPassword(String password) throws Exception {
 //        BCrypt.checkpw(password, Objects.requireNonNull(getUserHashedPassword()))
         if (password.equals(getUserPassword())) {
 
-            allowCapture = false;
+            setAllowCapture(false);
 
             if (mFeedFrameThread != null) {
-                mFeedFrameThread.interrupt();
+                try {
+                    mFeedFrameThread.interrupt();
+                } catch (Exception e) {
+                    Log.e("TimeEntryRegister", "Error interrupting feed frame thread", e);
+                }
             }
 
             if (mRecognizeThread != null) {
-                mRecognizeThread.interrupt();
+                try {
+                    mRecognizeThread.interrupt();
+                } catch (Exception e) {
+                    Log.e("TimeEntryRegister", "Error interrupting recognize thread", e);
+                }
             }
 
             if (mNfcAdapter != null) {
-                mNfcAdapter.disableForegroundDispatch(TimeEntryRegister.this);
+                try {
+                    mNfcAdapter.disableForegroundDispatch(TimeEntryRegister.this);
+                } catch (Exception e) {
+                    Log.e("TimeEntryRegister", "Error disabling NFC", e);
+                }
             }
 
             if (fingerSDK != null) {
-                fingerSDK.clear();
-                fingerSDK.release();
-                fingerSDK = null;
+                try {
+                    fingerSDK.clear();
+                    fingerSDK.release();
+                    fingerSDK = null;
+                } catch (Exception e) {
+                    Log.e("TimeEntryRegister", "Error releasing fingerprint SDK", e);
+                }
             }
 
             Intent intent = new Intent(TimeEntryRegister.this, MainActivity.class);
@@ -1001,24 +1038,57 @@ public class TimeEntryRegister extends CameraSettingActivity implements CameraMa
 
         Log.d("ScanFace", "onDestroy");
 
-        if (wakeLock != null && wakeLock.isHeld()) {
-            wakeLock.release();
+        try {
+            if (wakeLock != null && wakeLock.isHeld()) {
+                wakeLock.release();
+            }
+        } catch (Exception e) {
+            Log.e("TimeEntryRegister", "Error releasing wake lock", e);
         }
 
-        allowCapture = false;
-        if (mRecognizeThread != null) {
-            mRecognizeThread.interrupt();
-        }
-        if (mFeedFrameThread != null) {
-            mFeedFrameThread.interrupt();
-        }
-        if (manager != null) {
-            manager.release();
-        }
-        InitFacePassHandler.release();
+        setAllowCapture(false);
 
-        if (fingerSDK != null) {
-            fingerSDK.release();
+        // Clean up threads with timeout
+        try {
+            if (mRecognizeThread != null) {
+                mRecognizeThread.interrupt();
+                mRecognizeThread.join(1000); // Wait max 1 second for thread to finish
+            }
+        } catch (Exception e) {
+            Log.e("TimeEntryRegister", "Error stopping recognize thread", e);
+        }
+
+        try {
+            if (mFeedFrameThread != null) {
+                mFeedFrameThread.interrupt();
+                mFeedFrameThread.join(1000); // Wait max 1 second for thread to finish
+            }
+        } catch (Exception e) {
+            Log.e("TimeEntryRegister", "Error stopping feed frame thread", e);
+        }
+
+        try {
+            if (manager != null) {
+                manager.release();
+            }
+        } catch (Exception e) {
+            Log.e("TimeEntryRegister", "Error releasing camera manager", e);
+        }
+
+        try {
+            InitFacePassHandler.release();
+        } catch (Exception e) {
+            Log.e("TimeEntryRegister", "Error releasing FacePass handler", e);
+        }
+
+        try {
+            if (fingerSDK != null) {
+                fingerSDK.clear();
+                fingerSDK.release();
+                fingerSDK = null;
+            }
+        } catch (Exception e) {
+            Log.e("TimeEntryRegister", "Error releasing fingerprint SDK", e);
         }
     }
 

@@ -20,6 +20,8 @@ import android.util.Base64;
 import android.util.Log;
 import android.widget.Toast;
 
+import com.example.bms.utils.Logger;
+
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.annotation.NonNull;
 import androidx.core.app.ActivityCompat;
@@ -87,6 +89,9 @@ public class App extends Application {
 
     private Handler handler;
     private Runnable runnable;
+    private ExecutorService syncExecutor; // Dedicated thread pool for sync operations
+    private final Object tokenRefreshLock = new Object(); // Lock for token refresh
+    private volatile boolean isRefreshingToken = false; // Flag to prevent concurrent refreshes
 
     private ActivityResultLauncher<String> requestPermissionLauncher;
     private FusedLocationProviderClient fusedLocationClient;
@@ -176,7 +181,13 @@ public class App extends Application {
     public void onTerminate() {
         super.onTerminate();
         // Remove callbacks to prevent memory leaks
-        handler.removeCallbacks(runnable);
+        if (handler != null && runnable != null) {
+            handler.removeCallbacks(runnable);
+        }
+        // Cleanup executor services
+        if (syncExecutor != null && !syncExecutor.isShutdown()) {
+            syncExecutor.shutdownNow();
+        }
     }
 
     private void getApiEndpoint()  {
@@ -184,7 +195,7 @@ public class App extends Application {
         String apiEndpoint = sharedPreferences.getString("API_ENDPOINT", "http://115.147.32.2:9001/api");
 
         BASE_URL = apiEndpoint;
-        Log.d("Configuration", "API Endpoint: " + apiEndpoint);
+        Logger.d("Configuration", "API Endpoint: " + apiEndpoint);
     }
 
     private long getSnapshotRetention() {
@@ -226,6 +237,8 @@ public class App extends Application {
         String access = getAccess();
 
         handler = new Handler(Looper.getMainLooper());
+        // Initialize dedicated thread pool for sync operations (reusable to prevent thread leak)
+        syncExecutor = Executors.newFixedThreadPool(3);
 
         long snapshotRetention = getSnapshotRetention();
 
@@ -234,11 +247,21 @@ public class App extends Application {
         Runnable cleanupTask = new Runnable() {
             @Override
             public void run() {
-                FileCleanupUtil fileCleanupUtil = new FileCleanupUtil();
-                fileCleanupUtil.deleteOldFiles(snapshotRetention);
-
-                //every 30minutes
-                handler.postDelayed(this, 1800000);
+                try {
+                    // Run file cleanup on background thread to avoid blocking main thread
+                    syncExecutor.execute(() -> {
+                        try {
+                            FileCleanupUtil fileCleanupUtil = new FileCleanupUtil();
+                            fileCleanupUtil.deleteOldFiles(snapshotRetention);
+                        } catch (Exception e) {
+                            Log.e("App", "Error during file cleanup: " + e.getMessage(), e);
+                        }
+                    });
+                    //every 30minutes
+                    handler.postDelayed(this, 1800000);
+                } catch (Exception e) {
+                    Log.e("App", "Error scheduling cleanup task: " + e.getMessage(), e);
+                }
             }
         };
         handler.post(cleanupTask);
@@ -248,18 +271,59 @@ public class App extends Application {
             runnable = new Runnable() {
                 @Override
                 public void run() {
-                    // Call the getTimeEntries method
+                    try {
+                        // Use shared thread pool instead of creating new executors every time
+                        syncExecutor.execute(() -> {
+                            try {
+                                getSimilarDevices();
+                            } catch (Exception e) {
+                                Log.e("App", "Error syncing devices: " + e.getMessage(), e);
+                            }
+                        });
+                        syncExecutor.execute(() -> {
+                            try {
+                                syncUsersFromWeb();
+                            } catch (Exception e) {
+                                Log.e("App", "Error syncing users: " + e.getMessage(), e);
+                            }
+                        });
+                        syncExecutor.execute(() -> {
+                            try {
+                                getTimeEntries();
+                            } catch (Exception e) {
+                                Log.e("App", "Error syncing time entries: " + e.getMessage(), e);
+                            }
+                        });
+                        syncExecutor.execute(() -> {
+                            try {
+                                getAnnouncements();
+                            } catch (Exception e) {
+                                Log.e("App", "Error syncing announcements: " + e.getMessage(), e);
+                            }
+                        });
+                        syncExecutor.execute(() -> {
+                            try {
+                                syncMyDevice();
+                            } catch (Exception e) {
+                                Log.e("App", "Error syncing device: " + e.getMessage(), e);
+                            }
+                        });
 
-                    ExecutorService executor = Executors.newSingleThreadExecutor();
-                    executor.execute(()-> getSimilarDevices());
-                    executor.execute(()-> syncUsersFromWeb());
-                    executor.execute(()-> getTimeEntries());
-                    executor.execute(()-> getAnnouncements());
-                    executor.execute(() -> syncMyDevice());
+                        // Run device settings on background thread as well
+                        syncExecutor.execute(() -> {
+                            try {
+                                getDeviceSettings();
+                            } catch (Exception e) {
+                                Log.e("App", "Error getting device settings: " + e.getMessage(), e);
+                            }
+                        });
 
-                    getDeviceSettings();
-
-                    handler.postDelayed(this, getDeviceSyncInterval());
+                        handler.postDelayed(this, getDeviceSyncInterval());
+                    } catch (Exception e) {
+                        Log.e("App", "Error in sync runnable: " + e.getMessage(), e);
+                        // Retry after 30 seconds if there's an error
+                        handler.postDelayed(this, 30000);
+                    }
                 }
             };
 
@@ -1782,11 +1846,27 @@ public class App extends Application {
     }
 
     public void refreshToken() {
+        // Prevent concurrent token refresh attempts
+        synchronized (tokenRefreshLock) {
+            if (isRefreshingToken) {
+                Log.d("App", "Token refresh already in progress, skipping");
+                return;
+            }
+            isRefreshingToken = true;
+        }
+
         ExecutorService executor = Executors.newSingleThreadExecutor();
         Handler handler = new Handler(Looper.getMainLooper());
 
         String currentUserEmail = getCurrentEmail();
 
+        if (currentUserEmail == null || currentUserEmail.isEmpty()) {
+            Log.e("App", "Cannot refresh token: no current user email");
+            synchronized (tokenRefreshLock) {
+                isRefreshingToken = false;
+            }
+            return;
+        }
 
         executor.execute(() -> {
             try {
@@ -1827,23 +1907,32 @@ public class App extends Application {
                     editor.apply();
 
                     handler.post(() -> {
+                        Log.d("RefreshToken", "Token refreshed successfully");
+                        synchronized (tokenRefreshLock) {
+                            isRefreshingToken = false;
+                        }
+
                         syncUsersOnLogout(App.this, new SyncCallback() {
                             @Override
                             public void onSuccess() {
+                                Log.d("RefreshToken", "Users synced after token refresh");
                             }
 
                             @Override
                             public void onFailure(String errorMessage) {
+                                Log.e("RefreshToken", "Failed to sync users after token refresh: " + errorMessage);
                             }
                         });
 
                         syncTimeEntriesOnLogout(App.this, new SyncCallback() {
                             @Override
                             public void onSuccess() {
+                                Log.d("RefreshToken", "Time entries synced after token refresh");
                             }
 
                             @Override
                             public void onFailure(String errorMessage) {
+                                Log.e("RefreshToken", "Failed to sync time entries after token refresh: " + errorMessage);
                             }
                         });
                     });
@@ -1851,13 +1940,24 @@ public class App extends Application {
                 } else {
                     handler.post(() -> {
                         Log.e("RefreshToken", "Failed to refresh token, response code: " + responseCode);
+                        synchronized (tokenRefreshLock) {
+                            isRefreshingToken = false;
+                        }
                     });
                 }
                 conn.disconnect();
             } catch (Exception e) {
                 handler.post(() -> {
                     Log.e("RefreshToken", "Error refreshing token: " + e.getMessage());
+                    synchronized (tokenRefreshLock) {
+                        isRefreshingToken = false;
+                    }
                 });
+            } finally {
+                // Ensure flag is reset even if there's an uncaught exception
+                synchronized (tokenRefreshLock) {
+                    isRefreshingToken = false;
+                }
             }
         });
     }
