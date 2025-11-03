@@ -576,20 +576,27 @@ public class Configuration extends AppCompatActivity {
                 org.json.JSONArray biometrics = user.getJSONArray("biometrics");
                 for (int j = 0; j < biometrics.length(); j++) {
                     org.json.JSONObject biometric = biometrics.getJSONObject(j);
+                    String biometricType = biometric.getString("type");
+
                     long biometricId = biometricRepository.insertBiometric(
                             biometric.getString("key"),
                             userId,
-                            biometric.getString("type"));
+                            biometricType);
 
-                    org.json.JSONArray fingerprints = biometric.getJSONArray("fingerprints");
-                    for (int k = 0; k < fingerprints.length(); k++) {
-                        org.json.JSONObject fingerprint = fingerprints.getJSONObject(k);
+                    // Only process fingerprints array for fingerprint type biometrics
+                    // Face and RFID biometrics store data directly in the key field
+                    if (biometricType.equals("fingerprint") && biometric.has("fingerprints")) {
+                        org.json.JSONArray fingerprints = biometric.getJSONArray("fingerprints");
+                        for (int k = 0; k < fingerprints.length(); k++) {
+                            org.json.JSONObject fingerprint = fingerprints.getJSONObject(k);
 
-                        fingerprintRepository.insertFingerprint(
-                                biometricId,
-                                fingerprint.getString("key")
-                        );
+                            fingerprintRepository.insertFingerprint(
+                                    biometricId,
+                                    fingerprint.getString("key")
+                            );
+                        }
                     }
+                    // For face and rfid types, the template data is already stored in biometric.key
                 }
             }
 

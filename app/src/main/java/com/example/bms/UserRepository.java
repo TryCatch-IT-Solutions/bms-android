@@ -155,8 +155,17 @@ public class UserRepository {
         return id;
     }
 
-    public long insertOrUpdate(long groupId, String firstName, String middleName, String lastName, String address1, String address2, String barangay, String municipality, String province, String birthDate, String gender, int zipCode, double lon, double lat, String email, String phone, String emergencyContactNo,String emergencyContactName, String role, String password, String createdAt) {
-        SQLiteDatabase db = dbHelper.getWritableDatabase();
+    /**
+     * Get writable database instance for batch operations
+     */
+    public SQLiteDatabase getWritableDatabase() {
+        return dbHelper.getWritableDatabase();
+    }
+
+    /**
+     * Insert user in batch mode (no auto-close, for use within transactions)
+     */
+    public long insertSyncUserInBatch(SQLiteDatabase db, long groupId, String firstName, String middleName, String lastName, String address1, String address2, String barangay, String municipality, String province, String birthDate, String gender, int zipCode, double lon, double lat, String email, String phone, String emergencyContactNo, String emergencyContactName, String role, String password, String createdAt) {
         ContentValues values = new ContentValues();
         values.put(DatabaseHelper.COLUMN_GROUP_ID, groupId);
         values.put(DatabaseHelper.COLUMN_FIRST_NAME, firstName);
@@ -178,25 +187,122 @@ public class UserRepository {
         values.put(DatabaseHelper.COLUMN_EMERGENCY_CONTACT_NO, emergencyContactNo);
         values.put(DatabaseHelper.COLUMN_ROLE, role);
         values.put(DatabaseHelper.COLUMN_STATUS, "active");
-        values.put(DatabaseHelper.COLUMN_IS_SYNCED, false);
+        values.put(DatabaseHelper.COLUMN_IS_SYNCED, true);
         values.put(DatabaseHelper.COLUMN_CREATED_AT, createdAt);
         values.put(DatabaseHelper.COLUMN_UPDATED_AT, dbHelper.getCurrentDateTime());
         values.put(DatabaseHelper.COLUMN_PASSWORD, password);
-        values.put(DatabaseHelper.COLUMN_IS_SYNCED, true);
         values.put(DatabaseHelper.COLUMN_SOURCE, "existing");
 
-        long result;
-        Cursor cursor = db.query(DatabaseHelper.TABLE_USERS, new String[]{DatabaseHelper.COLUMN_ID}, DatabaseHelper.COLUMN_EMAIL + " = ?", new String[]{email}, null, null, null);
-        if (cursor.moveToFirst()) {
-            @SuppressLint("Range") long userId = cursor.getLong(cursor.getColumnIndex(DatabaseHelper.COLUMN_ID));
-           db.update(DatabaseHelper.TABLE_USERS, values, DatabaseHelper.COLUMN_EMAIL + " = ?", new String[]{String.valueOf(email)});
-           result = userId;
-        } else {
-            result = db.insert(DatabaseHelper.TABLE_USERS, null, values);
+        return db.insert(DatabaseHelper.TABLE_USERS, null, values);
+    }
+
+    public synchronized long insertOrUpdate(long groupId, String firstName, String middleName, String lastName, String address1, String address2, String barangay, String municipality, String province, String birthDate, String gender, int zipCode, double lon, double lat, String email, String phone, String emergencyContactNo,String emergencyContactName, String role, String password, String createdAt) {
+        SQLiteDatabase db = null;
+        Cursor emailCursor = null;
+        Cursor phoneCursor = null;
+
+        try {
+            db = dbHelper.getWritableDatabase();
+
+            ContentValues values = new ContentValues();
+            values.put(DatabaseHelper.COLUMN_GROUP_ID, groupId);
+            values.put(DatabaseHelper.COLUMN_FIRST_NAME, firstName);
+            values.put(DatabaseHelper.COLUMN_MIDDLE_NAME, middleName == null ? "" : middleName);
+            values.put(DatabaseHelper.COLUMN_LAST_NAME, lastName);
+            values.put(DatabaseHelper.COLUMN_ADDRESS1, address1);
+            values.put(DatabaseHelper.COLUMN_ADDRESS2, address2);
+            values.put(DatabaseHelper.COLUMN_BARANGAY, barangay);
+            values.put(DatabaseHelper.COLUMN_MUNICIPALITY, municipality);
+            values.put(DatabaseHelper.COLUMN_PROVINCE, province);
+            values.put(DatabaseHelper.COLUMN_BIRTH_DATE, birthDate);
+            values.put(DatabaseHelper.COLUMN_GENDER, gender.toLowerCase());
+            values.put(DatabaseHelper.COLUMN_ZIP_CODE, zipCode);
+            values.put(DatabaseHelper.COLUMN_LON, lon);
+            values.put(DatabaseHelper.COLUMN_LAT, lat);
+            values.put(DatabaseHelper.COLUMN_EMAIL, email);
+            values.put(DatabaseHelper.COLUMN_PHONE_NUMBER, phone);
+            values.put(DatabaseHelper.COLUMN_EMERGENCY_CONTACT_NAME, emergencyContactName);
+            values.put(DatabaseHelper.COLUMN_EMERGENCY_CONTACT_NO, emergencyContactNo);
+            values.put(DatabaseHelper.COLUMN_ROLE, role);
+            values.put(DatabaseHelper.COLUMN_STATUS, "active");
+            values.put(DatabaseHelper.COLUMN_IS_SYNCED, false);
+            values.put(DatabaseHelper.COLUMN_CREATED_AT, createdAt);
+            values.put(DatabaseHelper.COLUMN_UPDATED_AT, dbHelper.getCurrentDateTime());
+            values.put(DatabaseHelper.COLUMN_PASSWORD, password);
+            values.put(DatabaseHelper.COLUMN_IS_SYNCED, true);
+            values.put(DatabaseHelper.COLUMN_SOURCE, "existing");
+
+            long result;
+            Long existingUserId = null;
+
+            // First, check for existing user by email (only active users in assigned groups)
+            emailCursor = db.query(
+                DatabaseHelper.TABLE_USERS,
+                new String[]{DatabaseHelper.COLUMN_ID},
+                DatabaseHelper.COLUMN_EMAIL + " = ? AND " + DatabaseHelper.COLUMN_STATUS + " = 'active' AND " + DatabaseHelper.COLUMN_GROUP_ID + " > 0",
+                new String[]{email},
+                null, null, null
+            );
+
+            if (emailCursor.moveToFirst()) {
+                @SuppressLint("Range") long tempUserId = emailCursor.getLong(emailCursor.getColumnIndex(DatabaseHelper.COLUMN_ID));
+                existingUserId = tempUserId;
+            }
+            emailCursor.close();
+            emailCursor = null;
+
+            // If not found by email, check by phone number (only active users in assigned groups)
+            if (existingUserId == null) {
+                phoneCursor = db.query(
+                    DatabaseHelper.TABLE_USERS,
+                    new String[]{DatabaseHelper.COLUMN_ID},
+                    DatabaseHelper.COLUMN_PHONE_NUMBER + " = ? AND " + DatabaseHelper.COLUMN_STATUS + " = 'active' AND " + DatabaseHelper.COLUMN_GROUP_ID + " > 0",
+                    new String[]{phone},
+                    null, null, null
+                );
+
+                if (phoneCursor.moveToFirst()) {
+                    @SuppressLint("Range") long tempUserId = phoneCursor.getLong(phoneCursor.getColumnIndex(DatabaseHelper.COLUMN_ID));
+                    existingUserId = tempUserId;
+                }
+                phoneCursor.close();
+                phoneCursor = null;
+            }
+
+            // Update existing user or insert new one (atomic operations, no transaction needed)
+            if (existingUserId != null) {
+                db.update(
+                    DatabaseHelper.TABLE_USERS,
+                    values,
+                    DatabaseHelper.COLUMN_ID + " = ?",
+                    new String[]{String.valueOf(existingUserId)}
+                );
+                result = existingUserId;
+            } else {
+                result = db.insert(DatabaseHelper.TABLE_USERS, null, values);
+            }
+
+            return result;
+        } catch (Exception e) {
+            android.util.Log.e("UserRepository", "Error in insertOrUpdate: " + e.getMessage(), e);
+            throw e;
+        } finally {
+            // Clean up cursors
+            if (emailCursor != null) {
+                try {
+                    emailCursor.close();
+                } catch (Exception e) {
+                    // Ignore
+                }
+            }
+            if (phoneCursor != null) {
+                try {
+                    phoneCursor.close();
+                } catch (Exception e) {
+                    // Ignore
+                }
+            }
         }
-        cursor.close();
-//        db.close();
-        return result;
     }
 
     private String nullToEmptyString(String val) {

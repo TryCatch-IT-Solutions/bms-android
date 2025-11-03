@@ -928,10 +928,10 @@ public class DatabaseHelper extends SQLiteOpenHelper {
         Cursor cursor;
         boolean exists;
         if (userId != null) {
-            cursor = db.rawQuery("SELECT 1 FROM " + TABLE_USERS + " WHERE " + COLUMN_EMAIL + " = ? AND " + COLUMN_ID + " != ?", new String[]{email, userId});
+            cursor = db.rawQuery("SELECT 1 FROM " + TABLE_USERS + " WHERE " + COLUMN_EMAIL + " = ? AND " + COLUMN_ID + " != ? AND " + COLUMN_STATUS + " = 'active' AND " + COLUMN_GROUP_ID + " > 0", new String[]{email, userId});
             exists = cursor.moveToFirst();
         } else {
-            cursor = db.rawQuery("SELECT 1 FROM " + TABLE_USERS + " WHERE " + COLUMN_EMAIL + " = ?", new String[]{email});
+            cursor = db.rawQuery("SELECT 1 FROM " + TABLE_USERS + " WHERE " + COLUMN_EMAIL + " = ? AND " + COLUMN_STATUS + " = 'active' AND " + COLUMN_GROUP_ID + " > 0", new String[]{email});
             exists = cursor.moveToFirst();
         }
 
@@ -945,10 +945,10 @@ public class DatabaseHelper extends SQLiteOpenHelper {
         Cursor cursor;
         boolean exists;
         if (userId != null) {
-            cursor = db.rawQuery("SELECT 1 FROM " + TABLE_USERS + " WHERE " + COLUMN_PHONE_NUMBER + " = ? AND " + COLUMN_ID + " != ?", new String[]{phone, userId});
+            cursor = db.rawQuery("SELECT 1 FROM " + TABLE_USERS + " WHERE " + COLUMN_PHONE_NUMBER + " = ? AND " + COLUMN_ID + " != ? AND " + COLUMN_STATUS + " = 'active' AND " + COLUMN_GROUP_ID + " > 0", new String[]{phone, userId});
             exists = cursor.moveToFirst();
         } else {
-            cursor = db.rawQuery("SELECT 1 FROM " + TABLE_USERS + " WHERE " + COLUMN_PHONE_NUMBER + " = ?", new String[]{phone});
+            cursor = db.rawQuery("SELECT 1 FROM " + TABLE_USERS + " WHERE " + COLUMN_PHONE_NUMBER + " = ? AND " + COLUMN_STATUS + " = 'active' AND " + COLUMN_GROUP_ID + " > 0", new String[]{phone});
             exists = cursor.moveToFirst();
         }
 

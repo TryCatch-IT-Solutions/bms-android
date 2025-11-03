@@ -128,22 +128,25 @@ public class GroupActivity extends AppCompatActivity {
                     serialNo = Build.SERIAL;
                 }
 
-                long deviceGroupId = deviceRepository.getModelGroupId(model, serialNo);
+                // Only validate device model for non-superadmin users
+                if (!data.getRole().equals("superadmin")) {
+                    long deviceGroupId = deviceRepository.getModelGroupId(model, serialNo);
 
-                if(deviceGroupId == -1) {
-                    deviceGroupId = deviceRepository.getModelGroupId(model);
-                }
+                    if(deviceGroupId == -1) {
+                        deviceGroupId = deviceRepository.getModelGroupId(model);
+                    }
 
-                String deviceModel = deviceRepository.getDeviceGroupModel(selectedGroup.getId());
+                    String deviceModel = deviceRepository.getDeviceGroupModel(selectedGroup.getId());
 
-                if(deviceGroupId != -1 && deviceModel != null && !deviceModel.equals(model)) {
-                    new SweetAlertDialog(this, SweetAlertDialog.ERROR_TYPE)
-                            .setTitleText("Device Model Mismatch")
-                            .setContentText("Device model does not match the pre-selected model for this device")
-                            .setConfirmText("OK")
-                            .setConfirmClickListener(SweetAlertDialog::dismissWithAnimation)
-                            .show();
-                    return;
+                    if(deviceGroupId != -1 && deviceModel != null && !deviceModel.equals(model)) {
+                        new SweetAlertDialog(this, SweetAlertDialog.ERROR_TYPE)
+                                .setTitleText("Device Model Mismatch")
+                                .setContentText("Device model does not match the pre-selected model for this device")
+                                .setConfirmText("OK")
+                                .setConfirmClickListener(SweetAlertDialog::dismissWithAnimation)
+                                .show();
+                        return;
+                    }
                 }
 
                 UserRepository repository = new UserRepository(GroupActivity.this);

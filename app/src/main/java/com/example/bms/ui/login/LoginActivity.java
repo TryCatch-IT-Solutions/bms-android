@@ -32,6 +32,7 @@ import android.view.KeyEvent;
 import android.view.View;
 import android.view.inputmethod.EditorInfo;
 import android.widget.EditText;
+import android.widget.LinearLayout;
 import android.widget.ProgressBar;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -39,6 +40,7 @@ import android.widget.Toast;
 import com.example.bms.App;
 import com.example.bms.BiometricRepository;
 import com.example.bms.Configuration;
+import com.example.bms.DatabaseHelper;
 import com.example.bms.DeviceRepository;
 import com.example.bms.EncryptionUtil;
 import com.example.bms.FingerprintRepository;
@@ -66,6 +68,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import cn.pedant.SweetAlert.SweetAlertDialog;
 
@@ -77,15 +80,26 @@ public class LoginActivity extends AppCompatActivity {
 
     long modelGroupId;
 
+    // Sync UI components
+    private LinearLayout syncStatusContainer;
+    private ProgressBar syncProgressBar;
+    private TextView syncStatusText;
+    private TextView syncProgressText;
+    private MaterialButton loginButton;
+    private AtomicBoolean isSyncing = new AtomicBoolean(false);
+
     private void syncUsers(){
         try {
+            // Update UI to show syncing state
+            updateSyncUI(true, "Fetching users from server...", 0, 0);
+
             URL url = new URL(App.BASE_URL + "/sync/users/login");
             HttpURLConnection conn = (HttpURLConnection) url.openConnection();
             conn.setRequestMethod("GET");
             conn.setRequestProperty("Accept", "application/json");
             conn.setRequestProperty("Authorization", "Bearer " + App.TOKEN);
-            conn.setConnectTimeout(10000); // 10 second connection timeout
-            conn.setReadTimeout(15000); // 15 second read timeout
+            conn.setConnectTimeout(30000); // 30 second connection timeout (increased for large datasets)
+            conn.setReadTimeout(60000); // 60 second read timeout (increased for large datasets)
 
             int responseCode = conn.getResponseCode();
             if (responseCode != 200) {
@@ -103,69 +117,162 @@ public class LoginActivity extends AppCompatActivity {
 
             conn.disconnect();
 
-            Log.d("Response 1:", response.toString());
+            Log.d("LoginActivity", "Fetched users successfully, parsing JSON...");
             JSONArray users = new JSONArray(response.toString());
-            UserRepository userRepository = new UserRepository(this);
-            userRepository.resetUsersTable();
+            final int totalUsers = users.length();
+            Log.d("LoginActivity", "Total users to sync: " + totalUsers);
 
+            updateSyncUI(true, "Preparing database...", 0, totalUsers);
+
+            UserRepository userRepository = new UserRepository(this);
             BiometricRepository biometricRepository = new BiometricRepository(LoginActivity.this);
             FingerprintRepository fingerprintRepository = new FingerprintRepository(LoginActivity.this);
 
-            for (int i = 0; i < users.length(); i++) {
-                JSONObject user = users.getJSONObject(i);
+            // Reset tables
+            userRepository.resetUsersTable();
 
-                long groupId = user.isNull("group_id") ? 0 : user.getLong("group_id");
-                long userId = userRepository.insertSyncUser(
-                        groupId,
-                        user.getString("first_name"),
-                        user.getString("middle_name"),
-                        user.getString("last_name"),
-                        user.getString("address1"),
-                        user.getString("address2"),
-                        user.getString("barangay"),
-                        user.getString("municipality"),
-                        user.getString("province"),
-                        user.getString("birth_date"),
-                        user.getString("gender"),
-                        user.getInt("zip_code"),
-                        0,
-                        0,
-                        user.getString("email"),
-                        user.getString("phone_number"),
-                        user.getString("emergency_contact_no"),
-                        user.getString("emergency_contact_name"),
-                        user.getString("role"),
-                        user.getString("password"),
-                        user.getString("created_at"));
+            // Get database instance for batch operations
+            android.database.sqlite.SQLiteDatabase db = userRepository.getWritableDatabase();
 
-                JSONArray biometrics = user.getJSONArray("biometrics");
-                for (int j = 0; j < biometrics.length(); j++) {
-                    JSONObject biometric = biometrics.getJSONObject(j);
-                    long biometricId = biometricRepository.insertBiometric(
-                            biometric.getString("key"),
-                            userId,
-                            biometric.getString("type"));
+            try {
+                // Start transaction for batch inserts
+                db.beginTransaction();
+                updateSyncUI(true, "Syncing users to database...", 0, totalUsers);
 
-                    JSONArray fingerprints = biometric.getJSONArray("fingerprints");
-                    for (int k = 0; k < fingerprints.length(); k++) {
-                        JSONObject fingerprint = fingerprints.getJSONObject(k);
+                DatabaseHelper dbHelper = new DatabaseHelper(this);
+                String currentDateTime = dbHelper.getCurrentDateTime();
 
-                        fingerprintRepository.insertFingerprint(
-                                biometricId,
-                                fingerprint.getString("key")
-                        );
+                // Batch insert users
+                for (int i = 0; i < users.length(); i++) {
+                    try {
+                        JSONObject user = users.getJSONObject(i);
+
+                        long groupId = user.isNull("group_id") ? 0 : user.getLong("group_id");
+                        long userId = userRepository.insertSyncUserInBatch(
+                                db,
+                                groupId,
+                                user.getString("first_name"),
+                                user.getString("middle_name"),
+                                user.getString("last_name"),
+                                user.getString("address1"),
+                                user.getString("address2"),
+                                user.getString("barangay"),
+                                user.getString("municipality"),
+                                user.getString("province"),
+                                user.getString("birth_date"),
+                                user.getString("gender"),
+                                user.getInt("zip_code"),
+                                0,
+                                0,
+                                user.getString("email"),
+                                user.getString("phone_number"),
+                                user.getString("emergency_contact_no"),
+                                user.getString("emergency_contact_name"),
+                                user.getString("role"),
+                                user.getString("password"),
+                                user.getString("created_at"));
+
+                        // Insert biometrics
+                        JSONArray biometrics = user.getJSONArray("biometrics");
+                        for (int j = 0; j < biometrics.length(); j++) {
+                            JSONObject biometric = biometrics.getJSONObject(j);
+                            String biometricType = biometric.getString("type");
+
+                            long biometricId = biometricRepository.insertBiometricInBatch(
+                                    db,
+                                    biometric.getString("key"),
+                                    userId,
+                                    biometricType);
+
+                            // Only process fingerprints array for fingerprint type biometrics
+                            // Face and RFID biometrics store data directly in the key field
+                            if (biometricType.equals("fingerprint") && biometric.has("fingerprints")) {
+                                JSONArray fingerprints = biometric.getJSONArray("fingerprints");
+                                for (int k = 0; k < fingerprints.length(); k++) {
+                                    JSONObject fingerprint = fingerprints.getJSONObject(k);
+                                    fingerprintRepository.insertFingerprintInBatch(
+                                            db,
+                                            biometricId,
+                                            fingerprint.getString("key"),
+                                            currentDateTime
+                                    );
+                                }
+                            }
+                            // For face and rfid types, the template data is already stored in biometric.key
+                        }
+
+                        // Update progress every 50 users or at the end
+                        if ((i + 1) % 50 == 0 || i == users.length() - 1) {
+                            final int progress = i + 1;
+                            updateSyncUI(true, "Syncing users to database...", progress, totalUsers);
+                        }
+
+                    } catch (Exception e) {
+                        Log.e("LoginActivity", "Error syncing user at index " + i + ": " + e.getMessage(), e);
+                        // Continue with next user instead of failing completely
                     }
                 }
+
+                // Commit transaction
+                db.setTransactionSuccessful();
+                Log.d("LoginActivity", "User sync completed successfully");
+                updateSyncUI(true, "Sync completed!", totalUsers, totalUsers);
+
+            } finally {
+                db.endTransaction();
+                db.close();
             }
+
+            // Hide sync UI after a short delay
+            new Handler(Looper.getMainLooper()).postDelayed(() -> {
+                updateSyncUI(false, "", 0, 0);
+                isSyncing.set(false);
+            }, 1000);
 
         } catch (Exception e) {
             e.printStackTrace();
             Log.e("LoginActivity", "Error during user sync: " + e.getMessage(), e);
             // Show error to user on UI thread
             new Handler(Looper.getMainLooper()).post(() -> {
+                updateSyncUI(false, "", 0, 0);
+                isSyncing.set(false);
                 Toast.makeText(LoginActivity.this, "Failed to sync users: " + e.getMessage(), Toast.LENGTH_LONG).show();
             });
         }
+    }
+
+    /**
+     * Update sync UI components on the main thread
+     */
+    private void updateSyncUI(boolean isVisible, String statusText, int current, int total) {
+        new Handler(Looper.getMainLooper()).post(() -> {
+            if (syncStatusContainer != null) {
+                syncStatusContainer.setVisibility(isVisible ? View.VISIBLE : View.GONE);
+            }
+            if (isVisible) {
+                if (syncStatusText != null) {
+                    syncStatusText.setText(statusText);
+                }
+                if (syncProgressBar != null && total > 0) {
+                    int progress = (int) ((current / (float) total) * 100);
+                    syncProgressBar.setProgress(progress);
+                }
+                if (syncProgressText != null && total > 0) {
+                    syncProgressText.setText(current + " / " + total);
+                }
+                // Disable login button during sync
+                if (loginButton != null) {
+                    loginButton.setEnabled(false);
+                    loginButton.setText("Syncing data...");
+                }
+            } else {
+                // Re-enable login button after sync
+                if (loginButton != null) {
+                    loginButton.setEnabled(true);
+                    loginButton.setText(R.string.action_sign_in);
+                }
+            }
+        });
     }
 
     private String getAccess()  {
@@ -179,7 +286,12 @@ public class LoginActivity extends AppCompatActivity {
             return;
         }
 
+        // Set syncing flag
+        isSyncing.set(true);
+
         try {
+            updateSyncUI(true, "Syncing groups...", 0, 0);
+
             URL url = new URL(App.BASE_URL + "/sync/groups");
             HttpURLConnection conn = (HttpURLConnection) url.openConnection();
             conn.setRequestMethod("GET");
@@ -187,10 +299,14 @@ public class LoginActivity extends AppCompatActivity {
             conn.setRequestProperty("Authorization", "Bearer " + App.TOKEN);
 
             if (conn.getResponseCode() != 200) {
-                new SweetAlertDialog(LoginActivity.this, SweetAlertDialog.ERROR_TYPE)
-                        .setTitleText("Failed to sync groups")
-                        .setContentText("Failed to sync groups from the server. Please close the app, and try again.")
-                        .show();
+                new Handler(Looper.getMainLooper()).post(() -> {
+                    isSyncing.set(false);
+                    updateSyncUI(false, "", 0, 0);
+                    new SweetAlertDialog(LoginActivity.this, SweetAlertDialog.ERROR_TYPE)
+                            .setTitleText("Failed to sync groups")
+                            .setContentText("Failed to sync groups from the server. Please close the app, and try again.")
+                            .show();
+                });
                 throw new RuntimeException("Failed : HTTP error code : " + conn.getResponseCode());
             }
 
@@ -219,6 +335,7 @@ public class LoginActivity extends AppCompatActivity {
                         group.getString("updated_at"));
             }
 
+            // Sync users after groups are synced
             new Handler(Looper.getMainLooper()).postDelayed(new Runnable() {
                 @Override
                 public void run() {
@@ -229,7 +346,9 @@ public class LoginActivity extends AppCompatActivity {
 
         } catch (Exception e) {
             e.printStackTrace();
-            Log.e("GroupActivity", "Error during group sync: " + e.getMessage(), e);
+            Log.e("LoginActivity", "Error during group sync: " + e.getMessage(), e);
+            isSyncing.set(false);
+            updateSyncUI(false, "", 0, 0);
         }
     }
 
@@ -460,6 +579,12 @@ public class LoginActivity extends AppCompatActivity {
 
         Log.d("LoginActivity", App.BASE_URL);
 
+        // Initialize sync UI components
+        syncStatusContainer = binding.syncStatusContainer;
+        syncProgressBar = binding.syncProgress;
+        syncStatusText = binding.syncStatusText;
+        syncProgressText = binding.syncProgressText;
+
         if(getAccess().equals("online")) {
             ExecutorService executor = Executors.newSingleThreadExecutor();
             executor.execute(this::syncGroups);
@@ -469,7 +594,7 @@ public class LoginActivity extends AppCompatActivity {
 
         final EditText usernameEditText = binding.username;
         final EditText passwordEditText = binding.password;
-        final MaterialButton loginButton = (MaterialButton) binding.login;
+        loginButton = (MaterialButton) binding.login;
         final ProgressBar loadingProgressBar = binding.loading;
 
         findViewById(R.id.toggle_password_visibility).setOnClickListener(new View.OnClickListener() {
@@ -489,7 +614,8 @@ public class LoginActivity extends AppCompatActivity {
                 if (loginFormState == null) {
                     return;
                 }
-                loginButton.setEnabled(loginFormState.isDataValid());
+                // Only enable login button if data is valid AND not currently syncing
+                loginButton.setEnabled(loginFormState.isDataValid() && !isSyncing.get());
                 if (loginFormState.getUsernameError() != null) {
                     usernameEditText.setError(getString(loginFormState.getUsernameError()));
                 }
@@ -556,6 +682,11 @@ public class LoginActivity extends AppCompatActivity {
         loginButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
+                // Prevent login during sync
+                if (isSyncing.get()) {
+                    Toast.makeText(LoginActivity.this, "Please wait for data sync to complete", Toast.LENGTH_SHORT).show();
+                    return;
+                }
                 loadingProgressBar.setVisibility(View.VISIBLE);
                 loginViewModel.login(LoginActivity.this,usernameEditText.getText().toString(),
                         passwordEditText.getText().toString());

@@ -149,10 +149,14 @@ public class SplashScreen extends AppCompatActivity {
             @Override
             public void run() {
 
+                LoginDataSource loginDataSource = new LoginDataSource(SplashScreen.this);
+                LoggedInUser data = loginDataSource.getUserData(SplashScreen.this);
+
                 if (savedGroupId.equals("0")) {
                     startActivity(new Intent(SplashScreen.this, GroupActivity.class));
                     finish();
-                }else if(modelGroupId != -1 && !deviceModel.equals(Build.MODEL)) {
+                }else if(!data.getRole().equals("superadmin") && modelGroupId != -1 && !deviceModel.equals(Build.MODEL)) {
+                    // Only validate device model for non-superadmin users
                     startActivity(new Intent(SplashScreen.this, GroupActivity.class));
                     finish();
                 }else{

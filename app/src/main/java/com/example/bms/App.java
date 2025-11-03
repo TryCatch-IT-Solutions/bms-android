@@ -1018,23 +1018,30 @@ public class App extends Application {
                         JSONArray biometrics = user.getJSONArray("biometrics");
                         for (int j = 0; j < biometrics.length(); j++) {
                             JSONObject biometric = biometrics.getJSONObject(j);
+                            String biometricType = biometric.getString("type");
+
                             long biometricId = biometricRepository.insertOrUpdateBiometric(
                                     biometric.getString("key"),
                                     userId,
-                                    biometric.getString("type"));
+                                    biometricType);
 
-                            JSONArray fingerprints = biometric.getJSONArray("fingerprints");
-                            for (int k = 0; k < fingerprints.length(); k++) {
-                                JSONObject fingerprint = fingerprints.getJSONObject(k);
+                            // Only process fingerprints array for fingerprint type biometrics
+                            // Face and RFID biometrics store data directly in the key field
+                            if (biometricType.equals("fingerprint") && biometric.has("fingerprints")) {
+                                JSONArray fingerprints = biometric.getJSONArray("fingerprints");
+                                for (int k = 0; k < fingerprints.length(); k++) {
+                                    JSONObject fingerprint = fingerprints.getJSONObject(k);
 
 //                                Log.d("Fingerprint", "Key: " + fingerprint.getString("key"));
 //                                byte[] decodedBytes = Base64.decode(fingerprint.getString("key"), Base64.DEFAULT);
 //                                String decodedKey = new String(decodedBytes, StandardCharsets.ISO_8859_1);
-                                fingerprintRepository.insertOrUpdateFingerprint(
-                                        biometricId,
-                                        fingerprint.getString("key")
-                                );
+                                    fingerprintRepository.insertOrUpdateFingerprint(
+                                            biometricId,
+                                            fingerprint.getString("key")
+                                    );
+                                }
                             }
+                            // For face and rfid types, the template data is already stored in biometric.key
                         }
                     }
 

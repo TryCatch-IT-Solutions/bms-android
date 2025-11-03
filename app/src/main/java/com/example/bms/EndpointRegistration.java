@@ -67,11 +67,12 @@ public class EndpointRegistration extends AppCompatActivity {
         super.onDestroy();
         if (fusedLocationClient != null)
             fusedLocationClient.removeLocationUpdates(locationCallback);
+        dismissLoadingDialog();
     }
 
     private void getApiEndpoint() {
         SharedPreferences sharedPreferences = getSharedPreferences(Configuration.PREFS_NAME, Context.MODE_PRIVATE);
-        String apiEndpoint = sharedPreferences.getString("API_ENDPOINT", "https://arta-bms-api.dai-solutions.com.ph/api");
+        String apiEndpoint = sharedPreferences.getString("API_ENDPOINT", "https://dai-solutions.com.ph/api");
         TextInputEditText editTextApiEndpoint = findViewById(R.id.api_endpoint);
         editTextApiEndpoint.setText(apiEndpoint);
     }
@@ -92,40 +93,58 @@ public class EndpointRegistration extends AppCompatActivity {
 
     private void syncGroups() {
         try {
+            Log.d("EndpointRegistration", "Starting group sync");
+
+            runOnUiThread(() -> {
+                if (loadingDialog != null) {
+                    loadingDialog.setTitleText("Syncing Groups");
+                    loadingDialog.setContentText("Fetching groups from server...");
+                }
+            });
+
             URL url = new URL(App.BASE_URL + "/sync/groups");
             HttpURLConnection conn = (HttpURLConnection) url.openConnection();
             conn.setRequestMethod("GET");
             conn.setRequestProperty("Accept", "application/json");
             conn.setRequestProperty("Authorization", "Bearer " + App.TOKEN);
+            conn.setConnectTimeout(30000);
+            conn.setReadTimeout(30000);
 
-            if (conn.getResponseCode() != 200) {
+            int responseCode = conn.getResponseCode();
+            if (responseCode != 200) {
+                conn.disconnect();
                 runOnUiThread(() -> {
+                    dismissLoadingDialog();
+                    restoreUI();
                     new SweetAlertDialog(EndpointRegistration.this, SweetAlertDialog.ERROR_TYPE)
                             .setTitleText("Failed to sync groups")
-                            .setContentText("Failed to sync groups from the server. Please close the app, and try again.")
+                            .setContentText("Server returned error code: " + responseCode + ". Please try again.")
                             .show();
                 });
-                throw new RuntimeException("Failed : HTTP error code : " + conn.getResponseCode());
+                return;
             }
 
             BufferedReader br = new BufferedReader(new InputStreamReader((conn.getInputStream())));
-
             StringBuilder response = new StringBuilder();
             String output;
             while ((output = br.readLine()) != null) {
                 response.append(output);
             }
-
+            br.close();
             conn.disconnect();
 
             JSONArray groups = new JSONArray(response.toString());
             GroupRepository groupRepository = new GroupRepository(this);
-            // Assuming you have a method to reset the groups table
             groupRepository.resetTable();
+
+            runOnUiThread(() -> {
+                if (loadingDialog != null) {
+                    loadingDialog.setContentText("Processing " + groups.length() + " groups...");
+                }
+            });
 
             for (int i = 0; i < groups.length(); i++) {
                 JSONObject group = groups.getJSONObject(i);
-
                 groupRepository.insertGroup(
                         group.getLong("id"),
                         group.getString("name"),
@@ -133,17 +152,41 @@ public class EndpointRegistration extends AppCompatActivity {
                         group.getString("updated_at"));
             }
 
-            new Handler(Looper.getMainLooper()).postDelayed(new Runnable() {
-                @Override
-                public void run() {
-                    ExecutorService executor = Executors.newSingleThreadExecutor();
-                    executor.execute(EndpointRegistration.this::syncUsers);
-                }
-            }, 100);
+            Log.d("EndpointRegistration", "Groups synced successfully, starting user sync");
 
+            // Continue to user sync
+            syncUsers();
+
+        } catch (JSONException e) {
+            Log.e("EndpointRegistration", "JSON parsing error during group sync: " + e.getMessage(), e);
+            runOnUiThread(() -> {
+                dismissLoadingDialog();
+                restoreUI();
+                new SweetAlertDialog(EndpointRegistration.this, SweetAlertDialog.ERROR_TYPE)
+                        .setTitleText("Data Error")
+                        .setContentText("Failed to process groups from server. Please contact support.")
+                        .show();
+            });
+        } catch (IOException e) {
+            Log.e("EndpointRegistration", "Network error during group sync: " + e.getMessage(), e);
+            runOnUiThread(() -> {
+                dismissLoadingDialog();
+                restoreUI();
+                new SweetAlertDialog(EndpointRegistration.this, SweetAlertDialog.ERROR_TYPE)
+                        .setTitleText("Network Error")
+                        .setContentText("Failed to connect to server. Please check your internet connection and try again.")
+                        .show();
+            });
         } catch (Exception e) {
-            e.printStackTrace();
-            Log.e("GroupActivity", "Error during group sync: " + e.getMessage(), e);
+            Log.e("EndpointRegistration", "Unexpected error during group sync: " + e.getMessage(), e);
+            runOnUiThread(() -> {
+                dismissLoadingDialog();
+                restoreUI();
+                new SweetAlertDialog(EndpointRegistration.this, SweetAlertDialog.ERROR_TYPE)
+                        .setTitleText("Sync Failed")
+                        .setContentText("An unexpected error occurred: " + e.getMessage())
+                        .show();
+            });
         }
     }
 
@@ -184,9 +227,40 @@ public class EndpointRegistration extends AppCompatActivity {
         findViewById(R.id.lottieAnimation).setVisibility(View.VISIBLE);
 
         if (access.equals("online")) {
+            // Show loading dialog
+            loadingDialog = new SweetAlertDialog(this, SweetAlertDialog.PROGRESS_TYPE);
+            loadingDialog.setTitleText("Initializing");
+            loadingDialog.setContentText("Preparing to sync data...");
+            loadingDialog.setCancelable(false);
+            loadingDialog.show();
+
+            // Start sequential sync process in background
             ExecutorService executor = Executors.newSingleThreadExecutor();
-            executor.execute(() -> ((App) getApplication()).getSimilarDevices());
-            executor.execute(this::syncGroups);
+            executor.execute(() -> {
+                try {
+                    // First, get similar devices
+                    runOnUiThread(() -> {
+                        if (loadingDialog != null) {
+                            loadingDialog.setTitleText("Device Setup");
+                            loadingDialog.setContentText("Fetching device information...");
+                        }
+                    });
+                    ((App) getApplication()).getSimilarDevices();
+
+                    // Then sync groups and users (syncGroups will call syncUsers)
+                    syncGroups();
+                } catch (Exception e) {
+                    Log.e("EndpointRegistration", "Error during sync process: " + e.getMessage(), e);
+                    runOnUiThread(() -> {
+                        dismissLoadingDialog();
+                        restoreUI();
+                        new SweetAlertDialog(EndpointRegistration.this, SweetAlertDialog.ERROR_TYPE)
+                                .setTitleText("Sync Failed")
+                                .setContentText("An error occurred during synchronization. Please try again.")
+                                .show();
+                    });
+                }
+            });
         }
 
     }
@@ -231,34 +305,59 @@ public class EndpointRegistration extends AppCompatActivity {
         }
     }
 
-    SweetAlertDialog sweetAlertDialog;
+    private SweetAlertDialog loadingDialog;
 
     private void syncUsers() {
         try {
-            Log.d("LoginAct234", App.BASE_URL + "/sync/users/login");
+            Log.d("EndpointRegistration", App.BASE_URL + "/sync/users/login");
+
+            runOnUiThread(() -> {
+                if (loadingDialog != null) {
+                    loadingDialog.setTitleText("Syncing Users");
+                    loadingDialog.setContentText("Fetching user data from server...");
+                }
+            });
 
             URL url = new URL(App.BASE_URL + "/sync/users/login");
             HttpURLConnection conn = (HttpURLConnection) url.openConnection();
             conn.setRequestMethod("GET");
             conn.setRequestProperty("Accept", "application/json");
             conn.setRequestProperty("Authorization", "Bearer " + App.TOKEN);
+            conn.setConnectTimeout(30000);
+            conn.setReadTimeout(30000);
 
-            if (conn.getResponseCode() != 200) {
-                throw new RuntimeException("Failed : HTTP error code : " + conn.getResponseCode());
+            int responseCode = conn.getResponseCode();
+            if (responseCode != 200) {
+                conn.disconnect();
+                runOnUiThread(() -> {
+                    dismissLoadingDialog();
+                    restoreUI();
+                    new SweetAlertDialog(EndpointRegistration.this, SweetAlertDialog.ERROR_TYPE)
+                            .setTitleText("Failed to sync users")
+                            .setContentText("Server returned error code: " + responseCode + ". Please try again.")
+                            .show();
+                });
+                return;
             }
 
             BufferedReader br = new BufferedReader(new InputStreamReader((conn.getInputStream())));
-
             StringBuilder response = new StringBuilder();
             String output;
             while ((output = br.readLine()) != null) {
                 response.append(output);
             }
-
+            br.close();
             conn.disconnect();
 
-            Log.d("Response 1:", response.toString());
+            Log.d("EndpointRegistration", "Users received: " + response.length() + " characters");
             JSONArray users = new JSONArray(response.toString());
+
+            runOnUiThread(() -> {
+                if (loadingDialog != null) {
+                    loadingDialog.setContentText("Processing " + users.length() + " users...");
+                }
+            });
+
             UserRepository userRepository = new UserRepository(this);
             userRepository.resetUsersTable();
 
@@ -296,29 +395,79 @@ public class EndpointRegistration extends AppCompatActivity {
                 JSONArray biometrics = user.getJSONArray("biometrics");
                 for (int j = 0; j < biometrics.length(); j++) {
                     JSONObject biometric = biometrics.getJSONObject(j);
+                    String biometricType = biometric.getString("type");
+
                     long biometricId = biometricRepository.insertBiometric(
                             biometric.getString("key"),
                             userId,
-                            biometric.getString("type"));
+                            biometricType);
 
-                    JSONArray fingerprints = biometric.getJSONArray("fingerprints");
-                    for (int k = 0; k < fingerprints.length(); k++) {
-                        JSONObject fingerprint = fingerprints.getJSONObject(k);
-
-
-                        fingerprintRepository.insertFingerprint(
-                                biometricId,
-                                fingerprint.getString("key")
-                        );
+                    // Only process fingerprints array for fingerprint type biometrics
+                    // Face and RFID biometrics store data directly in the key field
+                    if (biometricType.equals("fingerprint") && biometric.has("fingerprints")) {
+                        JSONArray fingerprints = biometric.getJSONArray("fingerprints");
+                        for (int k = 0; k < fingerprints.length(); k++) {
+                            JSONObject fingerprint = fingerprints.getJSONObject(k);
+                            fingerprintRepository.insertFingerprint(
+                                    biometricId,
+                                    fingerprint.getString("key")
+                            );
+                        }
                     }
+                    // For face and rfid types, the template data is already stored in biometric.key
                 }
             }
 
-            startActivity(new Intent(EndpointRegistration.this, SplashScreen.class));
-            finish();
+            Log.d("EndpointRegistration", "Sync completed successfully");
+
+            runOnUiThread(() -> {
+                dismissLoadingDialog();
+                startActivity(new Intent(EndpointRegistration.this, SplashScreen.class));
+                finish();
+            });
+
+        } catch (JSONException e) {
+            Log.e("EndpointRegistration", "JSON parsing error during user sync: " + e.getMessage(), e);
+            runOnUiThread(() -> {
+                dismissLoadingDialog();
+                restoreUI();
+                new SweetAlertDialog(EndpointRegistration.this, SweetAlertDialog.ERROR_TYPE)
+                        .setTitleText("Data Error")
+                        .setContentText("Failed to process server response. Please contact support.")
+                        .show();
+            });
+        } catch (IOException e) {
+            Log.e("EndpointRegistration", "Network error during user sync: " + e.getMessage(), e);
+            runOnUiThread(() -> {
+                dismissLoadingDialog();
+                restoreUI();
+                new SweetAlertDialog(EndpointRegistration.this, SweetAlertDialog.ERROR_TYPE)
+                        .setTitleText("Network Error")
+                        .setContentText("Failed to connect to server. Please check your internet connection and try again.")
+                        .show();
+            });
         } catch (Exception e) {
-            e.printStackTrace();
-            Log.e("LoginActivity", "Error during user sync: " + e.getMessage(), e);
+            Log.e("EndpointRegistration", "Unexpected error during user sync: " + e.getMessage(), e);
+            runOnUiThread(() -> {
+                dismissLoadingDialog();
+                restoreUI();
+                new SweetAlertDialog(EndpointRegistration.this, SweetAlertDialog.ERROR_TYPE)
+                        .setTitleText("Sync Failed")
+                        .setContentText("An unexpected error occurred: " + e.getMessage())
+                        .show();
+            });
+        }
+    }
+
+    private void restoreUI() {
+        findViewById(R.id.api_endpoint_layout).setVisibility(View.VISIBLE);
+        findViewById(R.id.lottieAnimation).setVisibility(View.GONE);
+    }
+
+    private void dismissLoadingDialog() {
+        if (loadingDialog != null && loadingDialog.isShowing()) {
+            loadingDialog.dismiss();
+            loadingDialog = null;
         }
     }
 
@@ -601,6 +750,17 @@ public class EndpointRegistration extends AppCompatActivity {
 
         getApiEndpoint();
         getApiToken();
+
+        // ARTA and EAMC quick selection buttons
+        findViewById(R.id.arta_button).setOnClickListener(v -> {
+            TextInputEditText editTextApiEndpoint = findViewById(R.id.api_endpoint);
+            editTextApiEndpoint.setText("https://arta-bms-api.dai-solutions.com.ph/api");
+        });
+
+        findViewById(R.id.eamc_button).setOnClickListener(v -> {
+            TextInputEditText editTextApiEndpoint = findViewById(R.id.api_endpoint);
+            editTextApiEndpoint.setText("https://eamc-bms-api.dai-solutions.com.ph/api");
+        });
 
         sharedPreferencesGroup = getSharedPreferences(GroupActivity.PREFS_NAME, Context.MODE_PRIVATE);
 

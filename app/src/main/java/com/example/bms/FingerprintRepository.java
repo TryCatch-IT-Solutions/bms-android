@@ -77,4 +77,17 @@ public class FingerprintRepository {
         db.execSQL("DELETE FROM " + DatabaseHelper.TABLE_FINGERPRINTS);
         db.close();
     }
+
+    /**
+     * Insert fingerprint in batch mode (no auto-close, for use within transactions)
+     */
+    public void insertFingerprintInBatch(SQLiteDatabase db, long biometricId, String key, String currentDateTime) {
+        ContentValues values = new ContentValues();
+        values.put(DatabaseHelper.COLUMN_BIOMETRIC_ID, biometricId);
+        values.put(DatabaseHelper.COLUMN_KEY, key);
+        values.put(DatabaseHelper.COLUMN_CREATED_AT, currentDateTime);
+        values.put(DatabaseHelper.COLUMN_UPDATED_AT, currentDateTime);
+
+        db.insert(DatabaseHelper.TABLE_FINGERPRINTS, null, values);
+    }
 }

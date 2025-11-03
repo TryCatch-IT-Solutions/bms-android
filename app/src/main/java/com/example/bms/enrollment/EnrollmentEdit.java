@@ -203,7 +203,15 @@ public class EnrollmentEdit extends AppCompatActivity {
 
             } else {
                 Log.e("EnrollmentEdit", "Employee not found with ID: " + employeeId);
+                Toast.makeText(this, "Employee not found. Please try again.", Toast.LENGTH_LONG).show();
+                finish();
+                return;
             }
+        } else {
+            Log.e("EnrollmentEdit", "No employee ID provided");
+            Toast.makeText(this, "Invalid employee data. Please try again.", Toast.LENGTH_LONG).show();
+            finish();
+            return;
         }
     }
 
@@ -491,6 +499,14 @@ public class EnrollmentEdit extends AppCompatActivity {
                 emergencyContactInput.requestFocus();
                 return;
             }
+
+            // Safety check for employee object
+            if (employee == null) {
+                Toast.makeText(this, "Employee data not loaded. Please try again.", Toast.LENGTH_SHORT).show();
+                finish();
+                return;
+            }
+
 //            if (dbHelper.isEmailExists(email,employee.getUserId())) {
 //                Toast.makeText(this, "Email already exists", Toast.LENGTH_SHORT).show();
 //                return;

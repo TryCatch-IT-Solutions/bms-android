@@ -176,4 +176,17 @@ public class BiometricRepository {
         db.execSQL("DELETE FROM " + DatabaseHelper.TABLE_BIOMETRICS);
         db.close();
     }
+
+    /**
+     * Insert biometric in batch mode (no auto-close, for use within transactions)
+     */
+    public long insertBiometricInBatch(SQLiteDatabase db, String key, long userId, String type) {
+        ContentValues values = new ContentValues();
+        values.put(DatabaseHelper.COLUMN_KEY, key);
+        values.put(DatabaseHelper.COLUMN_USER_ID, userId);
+        values.put(DatabaseHelper.COLUMN_TYPE, type);
+        values.put(DatabaseHelper.COLUMN_IS_SYNCED, 0);
+
+        return db.insert(DatabaseHelper.TABLE_BIOMETRICS, null, values);
+    }
 }
