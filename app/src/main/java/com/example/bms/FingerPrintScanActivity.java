@@ -208,6 +208,41 @@ public class FingerPrintScanActivity extends AppCompatActivity {
                 resetFingerImage(4);
             }
         });
+
+        findViewById(R.id.reset_button_6).setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                resetFingerImage(5);
+            }
+        });
+
+        findViewById(R.id.reset_button_7).setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                resetFingerImage(6);
+            }
+        });
+
+        findViewById(R.id.reset_button_8).setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                resetFingerImage(7);
+            }
+        });
+
+        findViewById(R.id.reset_button_9).setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                resetFingerImage(8);
+            }
+        });
+
+        findViewById(R.id.reset_button_10).setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                resetFingerImage(9);
+            }
+        });
     }
 
     public boolean checkPermission() {
