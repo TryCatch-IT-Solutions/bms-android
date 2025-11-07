@@ -566,8 +566,17 @@ public class App extends Application {
                     editor.putString("SECONDARY_LOGO_URL", secondaryLogo);
                     editor.putString("SNAPSHOT_RETENTION", snapshotRetention);
                     editor.putString("STRANGER_DETECTION", strangerDetection);
-                    editor.putString("SCREEN_TIMEOUT", screenTimeout);
-                    editor.putString("DEVICE_SYNC_INTERVAL", syncInterval);
+
+                    // Only update SCREEN_TIMEOUT if it hasn't been manually modified locally
+                    if (!sharedPreferences.getBoolean("SCREEN_TIMEOUT_MODIFIED_LOCALLY", false)) {
+                        editor.putString("SCREEN_TIMEOUT", screenTimeout);
+                    }
+
+                    // Only update DEVICE_SYNC_INTERVAL if it hasn't been manually modified locally
+                    if (!sharedPreferences.getBoolean("DEVICE_SYNC_INTERVAL_MODIFIED_LOCALLY", false)) {
+                        editor.putString("DEVICE_SYNC_INTERVAL", syncInterval);
+                    }
+
                     editor.apply();
 
                     handler.post(() -> {

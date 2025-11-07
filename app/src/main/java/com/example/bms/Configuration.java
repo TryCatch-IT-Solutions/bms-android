@@ -370,6 +370,13 @@ public class Configuration extends AppCompatActivity {
                 fingerprintRepository.resetFingerprintsTable();
                 groupRepository.resetTable();
 
+                // Clear the local modification flags to allow server sync
+                SharedPreferences deviceSettings = getSharedPreferences("device_settings", Context.MODE_PRIVATE);
+                SharedPreferences.Editor settingsEditor = deviceSettings.edit();
+                settingsEditor.remove("SCREEN_TIMEOUT_MODIFIED_LOCALLY");
+                settingsEditor.remove("DEVICE_SYNC_INTERVAL_MODIFIED_LOCALLY");
+                settingsEditor.apply();
+
                 handler.post(() -> {
                     if (resetDialog != null) {
                         resetDialog.setContentText("Syncing groups from server...");
@@ -850,36 +857,38 @@ public class Configuration extends AppCompatActivity {
             @Override
             public void afterTextChanged(Editable s) {
                 String input = s.toString().trim();
-                
+
                 // Check if input is empty
                 if (input.isEmpty()) {
                     inputDeviceSyncInterval.setError(null); // Clear any previous error
                     return;
                 }
-                
+
                 try {
                     // Try to parse as long first to check if it exceeds Integer.MAX_VALUE
                     long value = Long.parseLong(input);
-                    
+
                     // Check if the value exceeds Integer.MAX_VALUE
                     if (value > Integer.MAX_VALUE) {
                         inputDeviceSyncInterval.setError("Value exceeds maximum allowed integer value (" + Integer.MAX_VALUE + ")");
                         return;
                     }
-                    
+
                     // Check if the value is negative
                     if (value < 0) {
                         inputDeviceSyncInterval.setError("Device sync interval must be a positive integer");
                         return;
                     }
-                    
+
                     // Value is valid, clear any error and save it
                     inputDeviceSyncInterval.setError(null);
                     SharedPreferences sharedPreferences = getSharedPreferences("device_settings", Context.MODE_PRIVATE);
                     SharedPreferences.Editor editor = sharedPreferences.edit();
                     editor.putString("DEVICE_SYNC_INTERVAL", input);
+                    // Mark as locally modified to prevent server sync from overwriting
+                    editor.putBoolean("DEVICE_SYNC_INTERVAL_MODIFIED_LOCALLY", true);
                     editor.apply();
-                    
+
                 } catch (NumberFormatException e) {
                     // Input is not a valid integer
                     inputDeviceSyncInterval.setError("Please enter a valid integer value");
@@ -897,36 +906,38 @@ public class Configuration extends AppCompatActivity {
             @Override
             public void afterTextChanged(Editable s) {
                 String input = s.toString().trim();
-                
+
                 // Check if input is empty
                 if (input.isEmpty()) {
                     inputScreenTimeout.setError(null); // Clear any previous error
                     return;
                 }
-                
+
                 try {
                     // Try to parse as long first to check if it exceeds Integer.MAX_VALUE
                     long value = Long.parseLong(input);
-                    
+
                     // Check if the value exceeds Integer.MAX_VALUE
                     if (value > Integer.MAX_VALUE) {
                         inputScreenTimeout.setError("Value exceeds maximum allowed integer value (" + Integer.MAX_VALUE + ")");
                         return;
                     }
-                    
+
                     // Check if the value is negative
                     if (value < 0) {
                         inputScreenTimeout.setError("Screen timeout must be a positive integer");
                         return;
                     }
-                    
+
                     // Value is valid, clear any error and save it
                     inputScreenTimeout.setError(null);
                     SharedPreferences sharedPreferences = getSharedPreferences("device_settings", Context.MODE_PRIVATE);
                     SharedPreferences.Editor editor = sharedPreferences.edit();
                     editor.putString("SCREEN_TIMEOUT", input);
+                    // Mark as locally modified to prevent server sync from overwriting
+                    editor.putBoolean("SCREEN_TIMEOUT_MODIFIED_LOCALLY", true);
                     editor.apply();
-                    
+
                 } catch (NumberFormatException e) {
                     // Input is not a valid integer
                     inputScreenTimeout.setError("Please enter a valid integer value");
@@ -1246,6 +1257,40 @@ public class Configuration extends AppCompatActivity {
             @Override
             public void onClick(View v) {
                 performReset();
+            }
+        });
+
+        findViewById(R.id.button_reset_sync_interval).setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                SharedPreferences sharedPreferences = getSharedPreferences("device_settings", Context.MODE_PRIVATE);
+                SharedPreferences.Editor editor = sharedPreferences.edit();
+                editor.remove("DEVICE_SYNC_INTERVAL_MODIFIED_LOCALLY");
+                editor.apply();
+
+                // Reload the server value
+                String serverValue = sharedPreferences.getString("DEVICE_SYNC_INTERVAL", "60000");
+                TextInputEditText inputDeviceSyncInterval = findViewById(R.id.input_device_sync_interval);
+                inputDeviceSyncInterval.setText(serverValue);
+
+                Toast.makeText(Configuration.this, "Device sync interval will now sync from server", Toast.LENGTH_SHORT).show();
+            }
+        });
+
+        findViewById(R.id.button_reset_screen_timeout).setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                SharedPreferences sharedPreferences = getSharedPreferences("device_settings", Context.MODE_PRIVATE);
+                SharedPreferences.Editor editor = sharedPreferences.edit();
+                editor.remove("SCREEN_TIMEOUT_MODIFIED_LOCALLY");
+                editor.apply();
+
+                // Reload the server value
+                String serverValue = sharedPreferences.getString("SCREEN_TIMEOUT", "60000");
+                TextInputEditText inputScreenTimeout = findViewById(R.id.input_screen_timeout);
+                inputScreenTimeout.setText(serverValue);
+
+                Toast.makeText(Configuration.this, "Screen timeout will now sync from server", Toast.LENGTH_SHORT).show();
             }
         });
 
