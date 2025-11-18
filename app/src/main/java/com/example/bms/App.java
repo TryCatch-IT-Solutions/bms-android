@@ -1455,9 +1455,20 @@ public class App extends Application {
                                     response.append(responseLine.trim());
                                 }
                                 Log.e("SyncTimeEntriesTask", "Response: " + response.toString());
-                                JSONObject jsonResponse = new JSONObject(response.toString());
-                                if (jsonResponse.has("message")) {
-                                    errorMessage = jsonResponse.getString("message");
+
+                                // Try to parse as JSON object, but handle non-JSON responses
+                                try {
+                                    JSONObject jsonResponse = new JSONObject(response.toString());
+                                    if (jsonResponse.has("message")) {
+                                        errorMessage = jsonResponse.getString("message");
+                                    } else {
+                                        errorMessage = "Server returned an error (HTTP " + responseCode + ")";
+                                    }
+                                } catch (JSONException e) {
+                                    // Response is not a valid JSON object, use raw response
+                                    errorMessage = response.toString().isEmpty()
+                                        ? "Server returned an error (HTTP " + responseCode + ")"
+                                        : response.toString();
                                 }
                             }
                         }
@@ -1639,9 +1650,20 @@ public class App extends Application {
                                 response.append(responseLine.trim());
                             }
                             Log.e("SyncTimeEntriesTask", "Response: " + response.toString());
-                            JSONObject jsonResponse = new JSONObject(response.toString());
-                            if (jsonResponse.has("message")) {
-                                errorMessage = jsonResponse.getString("message");
+
+                            // Try to parse as JSON object, but handle non-JSON responses
+                            try {
+                                JSONObject jsonResponse = new JSONObject(response.toString());
+                                if (jsonResponse.has("message")) {
+                                    errorMessage = jsonResponse.getString("message");
+                                } else {
+                                    errorMessage = "Server returned an error (HTTP " + responseCode + ")";
+                                }
+                            } catch (JSONException e) {
+                                // Response is not a valid JSON object, use raw response
+                                errorMessage = response.toString().isEmpty()
+                                    ? "Server returned an error (HTTP " + responseCode + ")"
+                                    : response.toString();
                             }
                         }
                     }
