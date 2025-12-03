@@ -1143,6 +1143,11 @@ public class TimeEntryRegister extends CameraSettingActivity implements CameraMa
             }
         });
 
+        // Get welcome popup interval from settings (in seconds) and convert to milliseconds
+        SharedPreferences sharedPreferences = getSharedPreferences("device_settings", Context.MODE_PRIVATE);
+        String intervalSeconds = sharedPreferences.getString("WELCOME_POPUP_INTERVAL", "5");
+        int intervalMillis = Integer.parseInt(intervalSeconds) * 1000;
+
         new Handler(Looper.getMainLooper()).postDelayed(new Runnable() {
             @Override
             public void run() {
@@ -1151,7 +1156,7 @@ public class TimeEntryRegister extends CameraSettingActivity implements CameraMa
                 hasPreview = false;
                 hostCapture();
             }
-        }, 5000);
+        }, intervalMillis);
     }
 
     private void hostCapture() {

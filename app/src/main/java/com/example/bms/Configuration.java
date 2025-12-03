@@ -825,9 +825,11 @@ public class Configuration extends AppCompatActivity {
         String strangerDetection = sharedPreferences.getString("STRANGER_DETECTION", "off");
         String screenTimeout = sharedPreferences.getString("SCREEN_TIMEOUT", "60000");
         String syncInterval = sharedPreferences.getString("DEVICE_SYNC_INTERVAL", "60000");
+        String welcomePopupInterval = sharedPreferences.getString("WELCOME_POPUP_INTERVAL", "5");
 
         TextInputEditText inputDeviceSyncInterval = findViewById(R.id.input_device_sync_interval);
         TextInputEditText inputScreenTimeout = findViewById(R.id.input_screen_timeout);
+        TextInputEditText inputWelcomePopupInterval = findViewById(R.id.input_welcome_popup_interval);
         SwitchMaterial switchStrangerDetection = findViewById(R.id.switch_stranger_detection);
         TextInputEditText inputSnapshotRetention = findViewById(R.id.input_snapshot_retention);
         TextInputEditText inputFingerprintScoreThreshold = findViewById(R.id.input_fingerprint_score_threshold);
@@ -835,6 +837,7 @@ public class Configuration extends AppCompatActivity {
 // Set the values to the UI elements
         inputDeviceSyncInterval.setText(syncInterval);
         inputScreenTimeout.setText(screenTimeout);
+        inputWelcomePopupInterval.setText(welcomePopupInterval);
         switchStrangerDetection.setChecked(strangerDetection.equals("on"));
         inputSnapshotRetention.setText(snapshotRetention);
         inputFingerprintScoreThreshold.setText(fingerprintScoreThreshold);
@@ -973,6 +976,22 @@ public class Configuration extends AppCompatActivity {
                 SharedPreferences sharedPreferences = getSharedPreferences("device_settings", Context.MODE_PRIVATE);
                 SharedPreferences.Editor editor = sharedPreferences.edit();
                 editor.putString("FINGERPRINT_SCORE_THRESHOLD", s.toString());
+                editor.apply();
+            }
+        });
+
+        inputWelcomePopupInterval.addTextChangedListener(new TextWatcher() {
+            @Override
+            public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
+
+            @Override
+            public void onTextChanged(CharSequence s, int start, int before, int count) {}
+
+            @Override
+            public void afterTextChanged(Editable s) {
+                SharedPreferences sharedPreferences = getSharedPreferences("device_settings", Context.MODE_PRIVATE);
+                SharedPreferences.Editor editor = sharedPreferences.edit();
+                editor.putString("WELCOME_POPUP_INTERVAL", s.toString());
                 editor.apply();
             }
         });

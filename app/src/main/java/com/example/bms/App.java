@@ -1723,11 +1723,14 @@ public class App extends Application {
         }
 
         JSONArray usersArray = new JSONArray();
+        List<Integer> syncedUserIds = new ArrayList<>();
 
         while (cursor.moveToNext()) {
             try {
                 JSONObject userObject = new JSONObject();
-                userObject.put("id", cursor.getInt(cursor.getColumnIndex(DatabaseHelper.COLUMN_ID)));
+                int userId = cursor.getInt(cursor.getColumnIndex(DatabaseHelper.COLUMN_ID));
+                syncedUserIds.add(userId);
+                userObject.put("id", userId);
                 userObject.put("group_id", cursor.getInt(cursor.getColumnIndex(DatabaseHelper.COLUMN_GROUP_ID)));
                 userObject.put("role", cursor.getString(cursor.getColumnIndex(DatabaseHelper.COLUMN_ROLE)));
                 userObject.put("first_name", cursor.getString(cursor.getColumnIndex(DatabaseHelper.COLUMN_FIRST_NAME)));
@@ -1753,8 +1756,8 @@ public class App extends Application {
                 userObject.put("deleted_by", cursor.getString(cursor.getColumnIndex(DatabaseHelper.COLUMN_DELETED_BY)));
                 userObject.put("source", cursor.getString(cursor.getColumnIndex(DatabaseHelper.COLUMN_SOURCE)));
 
-                long userId = cursor.getLong(cursor.getColumnIndex(DatabaseHelper.COLUMN_ID));
-                List<Biometric> biometrics = dbHelper.getBiometricsByUserId(userId);
+                // Use already declared userId variable from line 1731
+                List<Biometric> biometrics = dbHelper.getBiometricsByUserId((long) userId);
                 JSONArray biometricsArray = new JSONArray();
 
                 for (Biometric biometric : biometrics) {
@@ -1796,6 +1799,7 @@ public class App extends Application {
         Handler handler = new Handler(Looper.getMainLooper());
 
         String finalJsonData = jsonData;
+        List<Integer> finalSyncedUserIds = syncedUserIds;
         executor.execute(() -> {
             boolean success = false;
             String errorMessage = null;
@@ -1847,7 +1851,11 @@ public class App extends Application {
                     SQLiteDatabase writableDb = dbHelper.getWritableDatabase();
                     ContentValues values = new ContentValues();
                     values.put(DatabaseHelper.COLUMN_IS_SYNCED, 1);
-                    writableDb.update(DatabaseHelper.TABLE_USERS, values, null, null);
+                    // Only update users that were actually synced in this batch
+                    if (!finalSyncedUserIds.isEmpty()) {
+                        writableDb.update(DatabaseHelper.TABLE_USERS, values,
+                                DatabaseHelper.COLUMN_ID + " IN (" + TextUtils.join(",", finalSyncedUserIds) + ")", null);
+                    }
                     writableDb.close();
 
                     if (callback != null) {
