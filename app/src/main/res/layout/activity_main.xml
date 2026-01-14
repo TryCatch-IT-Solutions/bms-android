@@ -1,0 +1,162 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/main"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="@color/white"
+    android:gravity="top"
+    android:padding="16dp"
+    android:layout_margin="16dp"
+    tools:context=".MainActivity">
+
+    <ImageView
+        android:id="@+id/logo"
+        android:layout_width="match_parent"
+        android:layout_height="150dp"
+        android:layout_marginBottom="40dp"
+        android:src="@drawable/logo"
+        android:contentDescription="App Logo" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical">
+
+        <androidx.cardview.widget.CardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:backgroundTint="@color/primary"
+            app:cardCornerRadius="16dp"
+            android:layout_columnSpan="2"
+            >
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="16dp">
+
+                <TextView
+                    android:id="@+id/greeting"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="Welcome"
+                    android:textSize="16sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/user_name"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="Darwin Marcelo"
+                    android:textColor="@color/white"
+                    android:textSize="24sp"
+                    android:textStyle="bold" />
+            </LinearLayout>
+
+        </androidx.cardview.widget.CardView>
+
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btn_user_enrollment"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            app:cornerRadius="0dp"
+            android:backgroundTint="@color/secondary"
+            android:orientation="horizontal"
+            android:drawableLeft="@drawable/user_add_40"
+            android:text="Enrollment"
+            android:textColor="@android:color/white"
+            android:textSize="16sp"
+            android:drawableTint="@color/white"
+            android:drawablePadding="16dp"
+            android:textAlignment="textStart"
+         />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btn_group"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            app:cornerRadius="0dp"
+            android:backgroundTint="@color/secondary"
+            android:orientation="horizontal"
+            android:drawableLeft="@drawable/nodes_40"
+            android:text="@string/title_activity_group"
+            android:textColor="@android:color/white"
+            android:textSize="16sp"
+            android:drawableTint="@color/white"
+            android:drawablePadding="16dp"
+            android:textAlignment="textStart"
+            />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btn_user_list"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            app:cornerRadius="0dp"
+            android:backgroundTint="@color/secondary"
+            android:orientation="horizontal"
+            android:drawableLeft="@drawable/user_friends_40"
+            android:text="Employee List"
+            android:textColor="@android:color/white"
+            android:textSize="16sp"
+            android:drawableTint="@color/white"
+            android:drawablePadding="8dp"
+            android:textAlignment="textStart"
+            />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btn_time_register"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            app:cornerRadius="0dp"
+            android:backgroundTint="@color/secondary"
+            android:orientation="horizontal"
+            android:drawableLeft="@drawable/time_40"
+            android:text="@string/title_activity_time_register"
+            android:textColor="@android:color/white"
+            android:textSize="16sp"
+            android:drawableTint="@color/white"
+            android:drawablePadding="16dp"
+            android:textAlignment="textStart"
+            />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btn_config"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            app:cornerRadius="0dp"
+            android:backgroundTint="@color/secondary"
+            android:layout_marginBottom="20dp"
+            android:orientation="horizontal"
+            android:drawableLeft="@drawable/config_40"
+            android:text="Settings"
+            android:textColor="@android:color/white"
+            android:textSize="16sp"
+            android:drawablePadding="16dp"
+            android:textAlignment="textStart"
+            android:drawableTint="@color/white" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btn_logout"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            app:cornerRadius="0dp"
+            android:backgroundTint="@color/error"
+            android:layout_marginBottom="20dp"
+            android:orientation="horizontal"
+            android:drawableLeft="@drawable/logout_40"
+            android:text="Log out"
+            android:textColor="@android:color/white"
+            android:textSize="16sp"
+            android:drawablePadding="16dp"
+            android:textAlignment="textStart"
+
+            android:drawableTint="@color/white" />
+
+    </LinearLayout>
+
+</LinearLayout>

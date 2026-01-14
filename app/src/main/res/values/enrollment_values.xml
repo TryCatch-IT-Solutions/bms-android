@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <item name="first_name" type="id" />
+    <item name="middle_name" type="id" />
+    <item name="last_name" type="id" />
+    <item name="email" type="id" />
+    <item name="phone" type="id" />
+    <item name="btn_submit" type="id" />
+</resources>

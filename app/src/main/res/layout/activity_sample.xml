@@ -1,0 +1,166 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.appcompat.widget.LinearLayoutCompat xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_height="match_parent"
+    android:layout_width="match_parent"
+    android:orientation="vertical">
+    <androidx.appcompat.widget.Toolbar
+        android:id="@+id/toolbar"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:elevation="5dp"
+        android:background="@color/white"
+        app:navigationIcon="@drawable/fingerprint_40"
+        app:title="@string/app_name"/>
+    <androidx.constraintlayout.widget.ConstraintLayout
+        android:layout_width="match_parent"
+        android:layout_height="280dp"
+        app:layout_constraintBottom_toTopOf="@+id/v_line1"
+        app:layout_constraintTop_toBottomOf="@+id/pb_bar">
+
+        <androidx.appcompat.widget.AppCompatImageView
+            android:id="@+id/iv_finger"
+            android:layout_width="0dp"
+            android:layout_height="0dp"
+            android:layout_marginBottom="5dp"
+            android:background="#CCC"
+            android:padding="5dp"
+            android:scaleType="fitCenter"
+            android:src="@drawable/finger_80"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintDimensionRatio="4:5"
+            app:layout_constraintLeft_toLeftOf="parent"
+            app:layout_constraintTop_toTopOf="parent" />
+
+        <androidx.appcompat.widget.AppCompatTextView
+            android:id="@+id/tv_title_log"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="10dp"
+            android:padding="3dp"
+            android:text=".."
+            android:textColor="#333"
+            android:textSize="20sp"
+            android:textStyle="bold"
+            app:layout_constraintLeft_toRightOf="@+id/iv_finger"
+            app:layout_constraintRight_toRightOf="parent"
+            app:layout_constraintTop_toTopOf="parent" />
+
+        <androidx.core.widget.NestedScrollView
+            android:id="@+id/nsv_log"
+            android:layout_width="0dp"
+            android:layout_height="0dp"
+            android:layout_marginBottom="5dp"
+            android:background="#DDD"
+            android:padding="3dp"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintLeft_toLeftOf="@+id/tv_title_log"
+            app:layout_constraintRight_toRightOf="parent"
+            app:layout_constraintTop_toBottomOf="@+id/tv_title_log">
+
+            <androidx.appcompat.widget.AppCompatTextView
+                android:id="@+id/tv_log"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:hint=".."
+                />
+
+        </androidx.core.widget.NestedScrollView>
+
+
+    </androidx.constraintlayout.widget.ConstraintLayout>
+
+
+
+    <androidx.constraintlayout.widget.ConstraintLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:paddingStart="20dp"
+        android:paddingEnd="20dp">
+
+
+        <androidx.appcompat.widget.AppCompatTextView
+            android:id="@+id/host_tv_title_template"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:text="Choose Template"
+            android:textStyle="bold"
+            app:layout_constraintLeft_toLeftOf="@id/host_tv_title_template"
+            app:layout_constraintTop_toTopOf="parent" />
+
+
+        <androidx.appcompat.widget.AppCompatSpinner
+            android:id="@+id/host_sp_template"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            app:layout_constraintBottom_toBottomOf="@id/host_tv_title_template"
+            app:layout_constraintHorizontal_bias="0.0"
+            app:layout_constraintLeft_toRightOf="@id/host_tv_title_template"
+            app:layout_constraintRight_toRightOf="parent"
+            app:layout_constraintTop_toTopOf="@id/host_tv_title_template"
+            app:layout_constraintVertical_bias="0.4" />
+
+        <androidx.appcompat.widget.AppCompatTextView
+            android:id="@+id/host_tv_title_userId"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Enter username"
+            android:textStyle="bold"
+            app:layout_constraintBottom_toBottomOf="@+id/host_et_user_id"
+            app:layout_constraintLeft_toLeftOf="@id/host_tv_title_template"
+            app:layout_constraintTop_toTopOf="@+id/host_et_user_id" />
+
+        <androidx.appcompat.widget.AppCompatEditText
+            android:id="@+id/host_et_user_id"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:inputType="text"
+            android:text="hello"
+            app:layout_constraintLeft_toRightOf="@id/host_tv_title_userId"
+            app:layout_constraintRight_toRightOf="parent"
+            app:layout_constraintTop_toBottomOf="@+id/host_sp_template" />
+
+        <androidx.appcompat.widget.LinearLayoutCompat
+            android:id="@+id/ll_fun"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            app:layout_constraintLeft_toLeftOf="parent"
+            app:layout_constraintTop_toBottomOf="@id/host_et_user_id">
+
+
+            <androidx.appcompat.widget.LinearLayoutCompat
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center" >
+
+                <androidx.appcompat.widget.AppCompatButton
+                    android:id="@+id/host_btn_capture"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="Capture"
+                    android:textAllCaps="false"
+                    />
+
+
+                <androidx.appcompat.widget.AppCompatButton
+                    android:id="@+id/host_btn_verify"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="Verify"
+                    android:textAllCaps="false"
+                    />
+            </androidx.appcompat.widget.LinearLayoutCompat>
+
+        </androidx.appcompat.widget.LinearLayoutCompat>
+
+
+    </androidx.constraintlayout.widget.ConstraintLayout>
+
+
+
+</androidx.appcompat.widget.LinearLayoutCompat>
